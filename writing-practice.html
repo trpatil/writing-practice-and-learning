@@ -193,7 +193,7 @@
       </select>
     </div>
     <button class="btn btn-sm" style="background:var(--teal)" id="pickVideoFolderBtn">🎬 <span data-i18n="pickVideoFolder">Choose Reward Videos</span></button>
-    <input type="file" id="videoFolderInput" webkitdirectory directory multiple hidden>
+    <input type="file" id="videoFolderInput" accept="video/*" multiple hidden>
     <div class="hint" id="videoFolderStatus"></div>
   </div>
 </div>
@@ -276,7 +276,7 @@ const I18N = {
   rewardDurationLabel:{ en:'Video length:',            hi:'वीडियो की लंबाई:' },
   pickVideoFolder:{ en:'Choose Reward Videos',         hi:'इनाम वीडियो चुनो' },
   noVideosChosen:{ en:'No videos chosen yet.',         hi:'अभी तक कोई वीडियो नहीं चुना।' },
-  noVideosFound:{ en:'No videos found in that folder.', hi:'उस फ़ोल्डर में कोई वीडियो नहीं मिला।' },
+  noVideosFound:{ en:'No supported videos in that selection.', hi:'चुनी गई फ़ाइलों में कोई सही वीडियो नहीं मिला।' },
   watch:       { en:'Watch',                          hi:'देखो' },
   yourTurn:    { en:'Your Turn',                      hi:'अब तुम्हारी बारी' },
   replay:      { en:'Replay',                         hi:'फिर दिखाओ' },
@@ -925,7 +925,7 @@ function isVideoFile(f){
   const type = (f.type||'').toLowerCase();
   if(type.startsWith('video')) return true;
   const ext = (f.name.split('.').pop()||'').toLowerCase();
-  return ['mp4','webm','ogg','mov','m4v','avi','mkv'].includes(ext);
+  return ['mp4','webm','ogg','ogv','mov','m4v','avi','mkv','3gp','3g2','ts'].includes(ext);
 }
 function updateVideoFolderStatus(){
   const el = document.getElementById('videoFolderStatus');
@@ -944,6 +944,7 @@ updateVideoFolderStatus();
 
 function stopRewardVideo(){
   const vid = document.getElementById('rewardVideo');
+  vid.onerror = null;
   vid.pause();
   if(vid.src) URL.revokeObjectURL(vid.src);
   vid.removeAttribute('src'); vid.load();
@@ -958,23 +959,38 @@ function showVideoReward(onDone){
   msgEl.style.display = 'block';
   msgEl.textContent = SAY.rewardIntro(childName);
   speak(SAY.rewardIntro(childName));
-  rewardTimeout = setTimeout(()=> playRewardVideo(onDone), 2200);
+  rewardTimeout = setTimeout(()=> playRewardVideo(onDone, []), 2200);
 }
-function playRewardVideo(onDone){
-  if(!rewardVideos.length){
+// Tries a random not-yet-tried video; if it fails to decode/play (unsupported
+// format), tries another rather than leaving a blank screen. Only starts the
+// "how long to show it" timer once something is actually confirmed playing.
+function playRewardVideo(onDone, triedIndices){
+  clearTimeout(rewardTimeout); // discard any pending timer from an abandoned attempt
+  if(!rewardVideos.length || triedIndices.length >= rewardVideos.length){
     rewardTimeout = setTimeout(()=> finishReward(onDone), 800);
     return;
   }
   const msgEl = document.getElementById('rewardMessage');
   const vid = document.getElementById('rewardVideo');
-  const file = rewardVideos[Math.floor(Math.random()*rewardVideos.length)];
+  let idx;
+  do{ idx = Math.floor(Math.random()*rewardVideos.length); }while(triedIndices.includes(idx));
+  triedIndices.push(idx);
+
   msgEl.style.display = 'none';
   vid.style.display = 'block';
   vid.loop = true; vid.muted = false;
-  vid.src = URL.createObjectURL(file);
+  vid.onerror = null;
+  if(vid.src) URL.revokeObjectURL(vid.src);
+  vid.src = URL.createObjectURL(rewardVideos[idx]);
   vid.currentTime = 0;
-  vid.play().catch(()=>{ vid.muted = true; vid.play().catch(()=>{}); });
-  rewardTimeout = setTimeout(()=> finishReward(onDone), rewardConfig.duration*1000);
+
+  const tryAnother = ()=>{ vid.onerror = null; playRewardVideo(onDone, triedIndices); };
+  vid.onerror = tryAnother;
+  const onPlaying = ()=>{ rewardTimeout = setTimeout(()=> finishReward(onDone), rewardConfig.duration*1000); };
+  vid.play().then(onPlaying).catch(()=>{
+    vid.muted = true;
+    vid.play().then(onPlaying).catch(tryAnother);
+  });
 }
 function finishReward(onDone){
   stopRewardVideo();
