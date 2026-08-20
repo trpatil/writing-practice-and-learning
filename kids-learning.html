@@ -1,0 +1,1536 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Kids Learning — बच्चों की पढ़ाई</title>
+
+<!--
+  ════════════════════════════════════════════════════════════════════
+  KIDS LEARNING APP  (single file, no frameworks, no backend)
+  Just double-click this file in Google Chrome to run.
+
+  Bilingual: English (en-US) + Hindi (hi-IN). Toggle at top-right.
+  Voice OUT : Web Speech API  -> SpeechSynthesis
+  Voice IN  : Web Speech API  -> SpeechRecognition (Chrome only)
+  Rewards   : Web Audio API   -> happy chime tones (no files needed)
+
+  ── HOW TO ADD REAL IMAGES / SOUNDS ────────────────────────────────
+  Everywhere you see an emoji used as a picture, you can replace it
+  with a real image. Search below for the marker:  [[ ADD IMAGE HERE ]]
+  and for animal sounds:                            [[ ADD SOUND HERE ]]
+  Example image swap:
+      img: '🍎'                       // emoji placeholder
+      img: 'https://example.com/apple.png'   // <- your real image URL
+  The render code already detects URLs (starts with http) vs emoji.
+  Example sound swap: give an animal an `audio:` URL, e.g.
+      audio: 'https://example.com/cow-moo.mp3'
+  No ads, no paid services, fully offline-capable (except remote URLs).
+  ════════════════════════════════════════════════════════════════════
+-->
+
+<style>
+  /* Kid-friendly rounded font stack (Comic Sans / rounded fallbacks) */
+  :root{
+    --pink:#ff5fa2; --purple:#a259ff; --blue:#3aa0ff; --green:#2ecc71;
+    --orange:#ff9f1c; --yellow:#ffd23f; --red:#ff5a5f; --teal:#21d4b4;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family:"Comic Sans MS","Comic Sans","Baloo 2","Chalkboard SE",
+                "Segoe UI",system-ui,sans-serif;
+    background:linear-gradient(135deg,#ffe6f2 0%,#e6f0ff 50%,#e8fff0 100%);
+    color:#33335a; overflow:hidden; user-select:none;
+    -webkit-user-select:none;
+  }
+  .screen{ display:none; height:100vh; height:100dvh; padding:14px;
+           flex-direction:column; align-items:center; justify-content:center;
+           text-align:center; gap:12px; overflow:hidden; }
+  .screen.active{ display:flex; animation:pop .4s ease; }
+  @keyframes pop{ from{opacity:0; transform:scale(.9);} to{opacity:1; transform:scale(1);} }
+
+  h1{ font-size:clamp(28px,7vw,56px); margin:6px; color:var(--purple);
+      text-shadow:2px 2px 0 #fff; }
+  .big-text{ font-size:clamp(22px,5vw,38px); }
+
+  /* ── Top bar (language toggle + back) ── */
+  .topbar{ position:fixed; top:10px; left:0; right:0; display:flex;
+           justify-content:space-between; padding:0 14px; z-index:50; }
+  .pill{ font-size:20px; font-weight:bold; padding:12px 20px; border:none;
+         border-radius:40px; cursor:pointer; color:#fff; box-shadow:0 4px 0 rgba(0,0,0,.2);
+         min-height:52px; }
+  .pill:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.2); }
+  #langBtn{ background:var(--orange); }
+  .backBtn{ background:var(--blue); display:none; }
+
+  /* ── Buttons ── */
+  .btn{ border:none; border-radius:28px; color:#fff; cursor:pointer;
+        font-family:inherit; font-weight:bold; box-shadow:0 8px 0 rgba(0,0,0,.18);
+        transition:transform .08s; display:flex; align-items:center;
+        justify-content:center; gap:14px; }
+  .btn:active{ transform:translateY(5px); box-shadow:0 3px 0 rgba(0,0,0,.18); }
+  .btn-huge{ font-size:clamp(26px,6vw,40px); padding:26px 46px; min-height:90px; }
+  .menu-btn{ width:min(90vw,620px); font-size:clamp(22px,4.6vw,34px);
+             padding:20px; min-height:96px; }
+
+  .start{ background:var(--green); animation:wiggle 1.2s ease-in-out infinite; }
+  @keyframes wiggle{ 0%,100%{transform:rotate(-2deg) scale(1);}
+                     50%{transform:rotate(2deg) scale(1.04);} }
+
+  /* name input */
+  #nameInput{ font-family:inherit; font-size:30px; text-align:center;
+    padding:18px 22px; border:4px dashed var(--purple); border-radius:24px;
+    width:min(85vw,460px); outline:none; }
+
+  /* ── Big display card (letter / number / picture) ── */
+  .card{ font-size:clamp(120px,38vw,260px); line-height:1; }
+  .card.bounce{ animation:bounce 1s ease infinite; }
+  @keyframes bounce{ 0%,100%{transform:translateY(0);}
+                     50%{transform:translateY(-40px);} }
+  .word{ font-size:clamp(30px,7vw,56px); font-weight:bold; color:var(--pink); }
+  .pic{ font-size:clamp(120px,40vw,280px); }
+  .pic img{ width:min(70vw,360px); height:auto; border-radius:24px; }
+
+  /* ── Cars & Bikes theme ── */
+  .car-stage{ display:none; position:relative; overflow:hidden;
+              width:min(94vw,760px); height:clamp(190px,40vh,340px); }
+  #screen-play.theme-cars .car-stage{ display:block; }
+  #screen-play.theme-cars #playCard{ display:none; }        /* hide plain card */
+  .car-stage .vehicle{ position:absolute; bottom:9%; left:50%;
+              transform:translateX(-50%); width:clamp(220px,62vw,440px);
+              text-align:center; }
+  .car-stage .vehicle.drive{ animation:driveIn 1.1s cubic-bezier(.2,.85,.25,1); }
+  @keyframes driveIn{ from{ transform:translateX(-180%);} to{ transform:translateX(-50%);} }
+  /* wrong key: the car whirls (spins) once */
+  .car-stage .vehicle.whirl{ animation:whirl .6s ease; }
+  @keyframes whirl{ from{ transform:translateX(-50%) rotate(0); }
+                    to{ transform:translateX(-50%) rotate(360deg); } }
+  /* correct key: the car gets scared and shakes */
+  .car-stage .vehicle.scared{ animation:carShake .12s linear 8; }
+  @keyframes carShake{ 0%,100%{ transform:translateX(-50%) rotate(0);}
+                       25%{ transform:translateX(-54%) rotate(-9deg);}
+                       75%{ transform:translateX(-46%) rotate(9deg);} }
+  /* then it zooms away off-screen */
+  .car-stage .vehicle.drive-away{ animation:driveAway 1s ease-in forwards; }
+  @keyframes driveAway{ to{ transform:translateX(220%) rotate(6deg); opacity:.4; } }
+  /* the car's face on the windshield */
+  .car-face{ position:absolute; top:14%; left:50%; transform:translateX(-50%);
+             font-size:clamp(26px,6.5vw,48px); z-index:3; }
+  .vehicle-img svg{ width:100%; height:auto; display:block;
+              filter:drop-shadow(0 6px 6px rgba(0,0,0,.2)); }
+  /* real photos: keep aspect ratio, cap height so the roof letter stays visible */
+  .vehicle-img img{ width:auto; max-width:100%; height:auto;
+              max-height:clamp(120px,24vh,210px); display:inline-block; border-radius:14px;
+              filter:drop-shadow(0 6px 6px rgba(0,0,0,.25)); }
+  #screen-play.theme-cars.kbd-open .vehicle-img img{ max-height:110px; }
+  .vehicle-letter{ position:absolute; top:-18%; left:50%; transform:translateX(-50%);
+              font-size:clamp(58px,15vw,118px); font-weight:bold; color:#fff;
+              text-shadow:0 5px 0 rgba(0,0,0,.22), 0 0 18px rgba(0,0,0,.25); z-index:2; }
+  /* moving road to imply motion */
+  #screen-play.theme-cars .car-stage:after{ content:''; position:absolute;
+              bottom:9%; left:0; right:0; height:7px;
+              background:repeating-linear-gradient(90deg,#9aa 0 32px,transparent 32px 64px);
+              animation:road .35s linear infinite; }
+  @keyframes road{ from{ background-position:0 0; } to{ background-position:64px 0; } }
+  #screen-play.theme-cars.kbd-open .car-stage{ height:clamp(120px,24vh,200px); }
+
+  /* objects row (for numbers) */
+  .objects{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+            font-size:clamp(28px,7vw,52px); max-width:90vw; }
+  .objects span{ animation:pop .5s ease backwards; }
+
+  .hint{ font-size:clamp(20px,4.5vw,30px); color:#555; max-width:90vw; }
+  .feedback{ font-size:clamp(26px,6vw,44px); font-weight:bold; min-height:1.2em; }
+
+  .row{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+
+  /* mode select tiles */
+  .mode-tile{ width:min(85vw,520px); }
+
+  /* confetti / celebration */
+  .celebrate{ animation:spin .7s ease; }
+  @keyframes spin{ from{transform:rotate(0) scale(1);}
+                   50%{transform:rotate(360deg) scale(1.3);}
+                   to{transform:rotate(360deg) scale(1);} }
+
+  /* ── On-screen keyboard (help after wrong tries) ── */
+  .keyboard{ display:none; flex-direction:column; gap:8px; align-items:center;
+             margin-top:6px; }
+  .keyboard.show{ display:flex; animation:pop .3s ease; }
+  .krow{ display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+  .key{ min-width:46px; min-height:56px; padding:6px 12px; border-radius:14px;
+        border:none; background:#fff; color:#33335a; font-family:inherit;
+        font-weight:bold; font-size:26px; box-shadow:0 4px 0 rgba(0,0,0,.15);
+        cursor:pointer; }
+  .key:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.15); }
+  /* when helper keyboard is open, shrink everything so the screen never scrolls */
+  #screen-play.kbd-open{ gap:6px; }
+  #screen-play.kbd-open .card{ font-size:clamp(56px,14vw,110px); }
+  #screen-play.kbd-open #playObjects{ display:none; }
+  #screen-play.kbd-open #playWord{ font-size:clamp(20px,4.5vw,30px); }
+  #screen-play.kbd-open .key{ min-width:38px; min-height:46px; font-size:22px; padding:4px 8px; }
+  #screen-play.kbd-open .btn-huge{ min-height:58px; padding:12px 22px; font-size:clamp(20px,4.5vw,28px); }
+  /* the correct key: glowing + zooming so the child can find it */
+  .key.target{ background:var(--yellow); color:#e8590c;
+        box-shadow:0 0 0 5px var(--orange), 0 0 24px var(--orange);
+        animation:keyzoom .8s ease-in-out infinite; z-index:2; }
+  @keyframes keyzoom{ 0%,100%{transform:scale(1);} 50%{transform:scale(1.6);} }
+
+  /* ── Falling celebration overlay ── */
+  .rain-overlay{ position:fixed; inset:0; background:#0a0a1a; display:none;
+                 z-index:100; overflow:hidden; }
+  .rain-overlay.show{ display:block; }
+  /* transparent rain layer over the bright screen (car stays visible) */
+  .fall-layer{ position:fixed; inset:0; overflow:hidden; pointer-events:none;
+               z-index:90; display:none; }
+  .fall-layer.show{ display:block; }
+  .rain-overlay .hero{ position:absolute; top:-28vh;
+        font-size:clamp(100px,28vw,220px); color:var(--yellow); font-weight:bold;
+        text-shadow:0 0 40px #fff, 0 0 80px var(--orange);
+        animation:fall 5s linear infinite; }
+  .rain-overlay .hero img{ width:min(34vw,240px); height:auto;
+        filter:drop-shadow(0 0 30px #fff); }
+  .faller{ position:absolute; top:-15vh; animation:fall linear forwards; }
+  .faller img{ width:72px; height:auto; }
+  @keyframes fall{ to{ transform:translateY(135vh) rotate(360deg); } }
+
+  /* the little girl character + her speech bubble */
+  .rain-overlay .girl{ position:absolute; bottom:3vh; left:50%; z-index:4;
+        font-size:clamp(90px,22vw,170px);
+        animation:girlBob 1s ease-in-out infinite; }
+  @keyframes girlBob{ 0%,100%{ transform:translateX(-50%) translateY(0) rotate(-4deg); }
+                      50%{ transform:translateX(-50%) translateY(-14px) rotate(4deg); } }
+  .rain-overlay .bubble{ position:absolute; bottom:25vh; left:50%;
+        transform:translateX(-50%); background:#fff; color:#33335a; z-index:4;
+        padding:16px 22px; border-radius:26px; font-weight:bold; max-width:82vw;
+        font-size:clamp(20px,5vw,32px); box-shadow:0 10px 30px rgba(0,0,0,.45);
+        animation:pop .4s ease; }
+  .rain-overlay .bubble:after{ content:''; position:absolute; bottom:-16px; left:50%;
+        transform:translateX(-50%); border:12px solid transparent; border-top-color:#fff; }
+
+  /* menu can scroll if the screen is very short (5 buttons) */
+  #screen-menu{ justify-content:flex-start; padding-top:64px; overflow-y:auto; }
+
+  /* ── Picture Show ── */
+  #catButtons{ display:flex; flex-direction:column; gap:14px; width:min(90vw,620px);
+               overflow-y:auto; }
+  .cat-btn{ font-size:clamp(24px,5vw,36px); padding:24px; min-height:96px; }
+  .gallery-show{ padding:8px; gap:10px; justify-content:center; }
+  .slide-stage{ position:relative; width:min(96vw,900px); flex:1 1 auto;
+                display:flex; align-items:center; justify-content:center;
+                overflow:hidden; border-radius:24px; background:#101024; }
+  #slideImg{ max-width:100%; max-height:100%; object-fit:contain; border-radius:16px;
+             box-shadow:0 10px 40px rgba(0,0,0,.5); }
+  .slide-caption{ position:absolute; bottom:5%; left:50%; transform:translateX(-50%);
+                  background:rgba(255,255,255,.92); color:#33335a; font-weight:bold;
+                  padding:12px 28px; border-radius:40px; font-size:clamp(28px,6vw,54px);
+                  opacity:0; transition:opacity .3s; text-transform:capitalize; }
+  .slide-caption.show{ opacity:1; animation:capPop .4s ease; }
+  @keyframes capPop{ from{ transform:translateX(-50%) scale(.6);} to{ transform:translateX(-50%) scale(1);} }
+
+  /* entrance animations (catchy!) */
+  .a-zoomin  { animation:zoomIn   .8s ease both; }
+  .a-zoomout { animation:zoomOut  .8s ease both; }
+  .a-wipe    { animation:wipeIn   .8s ease both; }
+  .a-disperse{ animation:disperseIn .9s ease both; }
+  .a-slide   { animation:slideIn  .8s cubic-bezier(.2,.8,.2,1) both; }
+  .a-spin    { animation:spinIn   .9s ease both; }
+  .a-flip    { animation:flipIn   .8s ease both; }
+  .a-bounce  { animation:bounceIn 1s  ease both; }
+  @keyframes zoomIn { from{ transform:scale(.15); opacity:0; } to{ transform:scale(1); opacity:1; } }
+  @keyframes zoomOut{ from{ transform:scale(2);   opacity:0; } to{ transform:scale(1); opacity:1; } }
+  @keyframes wipeIn { from{ clip-path:inset(0 100% 0 0); } to{ clip-path:inset(0 0 0 0); } }
+  @keyframes disperseIn{ from{ filter:blur(28px); transform:scale(1.4); opacity:0; }
+                         to{ filter:blur(0); transform:scale(1); opacity:1; } }
+  @keyframes slideIn{ from{ transform:translateX(-120%); } to{ transform:translateX(0); } }
+  @keyframes spinIn { from{ transform:rotate(-540deg) scale(.1); opacity:0; }
+                      to{ transform:rotate(0) scale(1); opacity:1; } }
+  @keyframes flipIn { from{ transform:perspective(800px) rotateY(90deg); opacity:0; }
+                      to{ transform:perspective(800px) rotateY(0); opacity:1; } }
+  @keyframes bounceIn{ 0%{ transform:scale(.2); opacity:0;} 60%{ transform:scale(1.15); opacity:1;}
+                       80%{ transform:scale(.95);} 100%{ transform:scale(1);} }
+  /* exit animations */
+  .a-ex-wipe    { animation:wipeOut    .7s ease both; }
+  .a-ex-disperse{ animation:disperseOut .7s ease both; }
+  .a-ex-zoom    { animation:zoomAway   .7s ease both; }
+  .a-ex-fall    { animation:fallAway   .7s ease-in both; }
+  @keyframes wipeOut{ from{ clip-path:inset(0 0 0 0);} to{ clip-path:inset(0 0 0 100%);} }
+  @keyframes disperseOut{ from{ filter:blur(0); transform:scale(1); opacity:1; }
+                          to{ filter:blur(30px); transform:scale(1.5); opacity:0; } }
+  @keyframes zoomAway{ from{ transform:scale(1); opacity:1;} to{ transform:scale(.05); opacity:0;} }
+  @keyframes fallAway{ from{ transform:translateY(0) rotate(0); opacity:1; }
+                       to{ transform:translateY(120%) rotate(35deg); opacity:0; } }
+
+  .mic{ font-size:30px; }
+  .listening{ animation:pulse .9s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
+</style>
+
+<!-- ══════════ TOP BAR ══════════ -->
+<div class="topbar">
+  <button class="pill backBtn" id="backBtn">⬅️ <span data-i18n="back">Back</span></button>
+  <button class="pill" id="langBtn">🌐 हिंदी</button>
+</div>
+
+<!-- ══════════ GREETING SCREEN ══════════ -->
+<div class="screen active" id="screen-greet">
+  <h1>👋 <span data-i18n="welcome">Welcome!</span></h1>
+  <p class="big-text" data-i18n="askName">What is your name?</p>
+  <input id="nameInput" maxlength="20" autocomplete="off"
+         placeholder="..." />
+  <button class="btn btn-huge start" id="greetBtn">🎈 <span data-i18n="hello">Hello!</span></button>
+</div>
+
+<!-- ══════════ MAIN MENU ══════════ -->
+<div class="screen" id="screen-menu">
+  <h1 id="menuGreet">😊</h1>
+  <button class="btn menu-btn" style="background:var(--pink)" data-go="alpha">
+    🔤 <span data-i18n="learnAlpha">Learn Alphabet</span>
+  </button>
+  <button class="btn menu-btn" style="background:var(--blue)" data-go="num">
+    🔢 <span data-i18n="learnNum">Learn Numbers</span>
+  </button>
+  <button class="btn menu-btn" style="background:var(--green)" data-go="ani">
+    🦁 <span data-i18n="learnAni">Animals, Birds &amp; Colors</span>
+  </button>
+  <button class="btn menu-btn" style="background:var(--orange)" data-go="cars">
+    🚗 <span data-i18n="learnCars">Cars &amp; Bikes Alphabet</span>
+  </button>
+  <button class="btn menu-btn" style="background:var(--purple)" data-go="gallery">
+    🖼️ <span data-i18n="learnGallery">Picture Show</span>
+  </button>
+</div>
+
+<!-- ══════════ MODE SELECT (shared by alphabet & numbers) ══════════ -->
+<div class="screen" id="screen-mode">
+  <h1 id="modeTitle">🔤</h1>
+  <button class="btn menu-btn mode-tile" style="background:var(--purple)" id="modeA">
+    👀 <span data-i18n="modeA">Mode 1: Watch &amp; Find the key</span>
+  </button>
+  <button class="btn menu-btn mode-tile" style="background:var(--orange)" id="modeB">
+    ✋ <span data-i18n="modeB">Mode 2: Press any key to explore</span>
+  </button>
+</div>
+
+<!-- ══════════ PLAY SCREEN (letters / numbers) ══════════ -->
+<div class="screen" id="screen-play">
+  <div class="card" id="playCard">A</div>
+  <!-- Cars & Bikes theme: a vehicle drives in with the letter on its roof -->
+  <div class="car-stage" id="carStage">
+    <div class="vehicle" id="vehicle">
+      <div class="vehicle-letter" id="vehicleLetter">A</div>
+      <div class="car-face" id="carFace">🙂</div>
+      <div class="vehicle-img" id="vehicleImg"></div>
+    </div>
+  </div>
+  <div class="word" id="playWord"></div>
+  <div class="objects" id="playObjects"></div>
+  <div class="hint" id="playHint"></div>
+  <div class="feedback" id="playFeedback"></div>
+  <!-- On-screen keyboard: appears only after several wrong tries (also tappable) -->
+  <div class="keyboard" id="keyboard"></div>
+  <div class="row">
+    <button class="btn btn-huge" style="background:var(--teal)" id="repeatBtn">🔊 <span data-i18n="again">Again</span></button>
+    <button class="btn btn-huge" style="background:var(--orange)" id="nextBtn">➡️ <span data-i18n="next">Next</span></button>
+  </div>
+</div>
+
+<!-- ══════════ PICTURE SHOW: pick folder ══════════ -->
+<div class="screen" id="screen-gallery-pick">
+  <h1>🖼️ <span data-i18n="galleryTitle">Picture Show</span></h1>
+  <p class="big-text" data-i18n="pickFolderMsg">Open your pictures folder</p>
+  <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+  <button class="btn btn-huge start" id="pickFolderBtn">📂 <span data-i18n="openFolder">Open Folder</span></button>
+  <p class="hint" data-i18n="folderHint">Pick the "images" folder.</p>
+</div>
+
+<!-- ══════════ PICTURE SHOW: choose category ══════════ -->
+<div class="screen" id="screen-gallery-cats">
+  <h1 data-i18n="chooseCategory">Choose a folder</h1>
+  <div id="catButtons"></div>
+</div>
+
+<!-- ══════════ PICTURE SHOW: slideshow ══════════ -->
+<div class="screen gallery-show" id="screen-gallery-show">
+  <div class="slide-stage" id="slideStage">
+    <img id="slideImg" alt="">
+    <div class="slide-caption" id="slideCaption"></div>
+  </div>
+  <div class="row">
+    <button class="btn btn-huge" style="background:var(--blue)"  id="slidePrev">⏮️</button>
+    <button class="btn btn-huge" style="background:var(--orange)" id="slidePause">⏸️</button>
+    <button class="btn btn-huge" style="background:var(--green)"  id="slideNext">⏭️</button>
+  </div>
+</div>
+
+<!-- Full-screen 10-second "falling" celebration overlay (dark background) -->
+<div class="rain-overlay" id="rainOverlay"></div>
+
+<!-- Transparent falling layer (apples/cars rain over the normal screen) -->
+<div class="fall-layer" id="fallLayer"></div>
+
+<!-- ══════════ ANIMALS / BIRDS / COLORS SCREEN ══════════ -->
+<div class="screen" id="screen-quiz">
+  <div class="pic" id="quizPic">🐶</div>
+  <div class="hint" id="quizHint" data-i18n="whatIsThis">What is this?</div>
+  <div class="feedback" id="quizFeedback"></div>
+  <div class="row">
+    <button class="btn btn-huge" style="background:var(--red)" id="micBtn">🎤 <span data-i18n="speak">Speak</span></button>
+    <button class="btn btn-huge" style="background:var(--teal)" id="quizRepeat">🔊 <span data-i18n="again">Again</span></button>
+    <button class="btn btn-huge" style="background:var(--orange)" id="quizNext">➡️ <span data-i18n="next">Next</span></button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   1. LANGUAGE / TRANSLATIONS
+   ============================================================ */
+let LANG = 'en';                         // 'en' or 'hi'
+const VOICE_LANG = { en:'en-US', hi:'hi-IN' };
+
+const I18N = {
+  back:        { en:'Back',                         hi:'वापस' },
+  welcome:     { en:'Welcome!',                     hi:'स्वागत है!' },
+  askName:     { en:'What is your name?',           hi:'तुम्हारा नाम क्या है?' },
+  hello:       { en:'Hello!',                       hi:'नमस्ते!' },
+  learnAlpha:  { en:'Learn Alphabet',               hi:'अक्षर सीखो' },
+  learnNum:    { en:'Learn Numbers',                hi:'गिनती सीखो' },
+  learnAni:    { en:'Animals, Birds & Colors',      hi:'जानवर, पक्षी और रंग' },
+  learnCars:   { en:'Cars & Bikes Alphabet',        hi:'गाड़ियाँ और बाइक — अक्षर' },
+  learnGallery:{ en:'Picture Show',                 hi:'तस्वीरें देखो' },
+  galleryTitle:{ en:'Picture Show',                 hi:'तस्वीरें देखो' },
+  openFolder:  { en:'Open Folder',                  hi:'फ़ोल्डर खोलो' },
+  pickFolderMsg:{ en:'Open your pictures folder',   hi:'अपना तस्वीरों वाला फ़ोल्डर खोलो' },
+  folderHint:  { en:'Pick the "images" folder that has your family, animals, cars, gods folders inside.',
+                 hi:'वह "images" फ़ोल्डर चुनो जिसमें family, animals, cars, gods फ़ोल्डर हैं।' },
+  chooseCategory:{ en:'Choose a folder',            hi:'एक फ़ोल्डर चुनो' },
+  noImages:    { en:'No pictures found in that folder.', hi:'उस फ़ोल्डर में कोई तस्वीर नहीं मिली।' },
+  modeA:       { en:'Mode 1: Watch & Find the key', hi:'तरीका 1: देखो और बटन ढूँढो' },
+  modeB:       { en:'Mode 2: Press any key',        hi:'तरीका 2: कोई भी बटन दबाओ' },
+  again:       { en:'Again',                         hi:'फिर से' },
+  next:        { en:'Next',                          hi:'आगे' },
+  speak:       { en:'Speak',                         hi:'बोलो' },
+  whatIsThis:  { en:'What is this?',                 hi:'यह क्या है?' },
+};
+
+// Spoken sentences (functions so we can insert names/letters)
+const SAY = {
+  greet:    (n)=> LANG==='en' ? `Hi ${n}, how are you? Let's play and learn!`
+                              : `नमस्ते ${n}, तुम कैसे हो? चलो खेलें और सीखें!`,
+  menuHi:   (n)=> LANG==='en' ? `Okay ${n}, what do you want to learn?`
+                              : `ठीक है ${n}, तुम क्या सीखना चाहते हो?`,
+  pickMode: ()=> LANG==='en' ? `Choose how you want to play.`
+                             : `तुम कैसे खेलना चाहते हो, चुनो।`,
+  pressKey: (L)=> LANG==='en' ? `Press the ${L} key on the keyboard.`
+                              : `कीबोर्ड पर ${L} वाला बटन दबाओ।`,
+  forWord:  (L,w)=> LANG==='en' ? `${L} for ${w}.` : `${L} से ${w}।`,
+  numHas:   (n,obj)=> LANG==='en' ? `${n}. Count them: ${n} ${obj}.`
+                                  : `${n}। गिनो: ${n} ${obj}।`,
+  pressNum: (n)=> LANG==='en' ? `Press number ${n} on the keyboard.`
+                              : `कीबोर्ड पर ${n} नंबर दबाओ।`,
+  correct:  (n)=> LANG==='en' ? `Wonderful ${n}! That's right!`
+                              : `शाबाश ${n}! बिल्कुल सही!`,
+  // spoken by the little-girl character during the falling celebration
+  girlAlpha:(n,L,w)=> LANG==='en' ? `Yay ${n}! ${L} for ${w}. Now you say it with me: ${L} for ${w}!`
+                                  : `शाबाश ${n}! ${L} से ${w}। अब मेरे साथ बोलो: ${L} से ${w}!`,
+  girlNum:  (n,num,obj)=> LANG==='en' ? `Yay ${n}! This is ${num}. ${num} ${obj}! Now say it with me: ${num}!`
+                                      : `शाबाश ${n}! यह है ${num}। ${num} ${obj}! अब मेरे साथ बोलो: ${num}!`,
+  girlCar:  (n,L)=> LANG==='en' ? `Yay ${n}! The letter ${L}! Vroom vroom! Say ${L}!`
+                                : `शाबाश ${n}! अक्षर ${L}! वूम वूम! बोलो ${L}!`,
+  tryAgain: ()=> LANG==='en' ? `Oops, try again!` : `अरे, फिर से कोशिश करो!`,
+  whatIs:   ()=> LANG==='en' ? `What is this? Press the microphone and say it.`
+                             : `यह क्या है? माइक दबाओ और बोलो।`,
+  itIs:     (name)=> LANG==='en' ? `This is a ${name}.` : `यह ${name} है।`,
+  listen:   ()=> LANG==='en' ? `I am listening...` : `मैं सुन रहा हूँ...`,
+};
+
+function t(key){ return (I18N[key] && I18N[key][LANG]) || key; }
+
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.getElementById('langBtn').textContent = LANG==='en' ? '🌐 हिंदी' : '🌐 English';
+  document.documentElement.lang = VOICE_LANG[LANG];
+}
+
+/* ============================================================
+   2. DATA  ( [[ ADD IMAGE HERE ]] swap emoji for real image URLs )
+   ============================================================ */
+
+// ALPHABET A–Z : letter -> word (en/hi) + picture
+// NOTE: keyboard has English letters, so the LETTER stays A–Z in both
+// languages; only the word + voice change with the language.
+const ALPHABET = [
+  {L:'A', en:'Apple',     hi:'सेब',      img:'🍎'},
+  {L:'B', en:'Ball',      hi:'गेंद',     img:'⚽'},
+  {L:'C', en:'Cat',       hi:'बिल्ली',   img:'🐱'},
+  {L:'D', en:'Dog',       hi:'कुत्ता',    img:'🐶'},
+  {L:'E', en:'Elephant',  hi:'हाथी',     img:'🐘'},
+  {L:'F', en:'Fish',      hi:'मछली',     img:'🐟'},
+  {L:'G', en:'Grapes',    hi:'अंगूर',    img:'🍇'},
+  {L:'H', en:'Hat',       hi:'टोपी',     img:'🎩'},
+  {L:'I', en:'Ice cream', hi:'आइसक्रीम', img:'🍦'},
+  {L:'J', en:'Jug',       hi:'जग',       img:'🫗'},
+  {L:'K', en:'Kite',      hi:'पतंग',     img:'🪁'},
+  {L:'L', en:'Lion',      hi:'शेर',      img:'🦁'},
+  {L:'M', en:'Monkey',    hi:'बंदर',     img:'🐵'},
+  {L:'N', en:'Nest',      hi:'घोंसला',   img:'🪹'},
+  {L:'O', en:'Orange',    hi:'संतरा',    img:'🍊'},
+  {L:'P', en:'Parrot',    hi:'तोता',     img:'🦜'},
+  {L:'Q', en:'Queen',     hi:'रानी',     img:'👑'},
+  {L:'R', en:'Rabbit',    hi:'खरगोश',    img:'🐰'},
+  {L:'S', en:'Sun',       hi:'सूरज',     img:'☀️'},
+  {L:'T', en:'Tiger',     hi:'बाघ',      img:'🐯'},
+  {L:'U', en:'Umbrella',  hi:'छाता',     img:'☂️'},
+  {L:'V', en:'Van',       hi:'वैन',      img:'🚐'},
+  {L:'W', en:'Watch',     hi:'घड़ी',     img:'⌚'},
+  {L:'X', en:'Xylophone', hi:'जलतरंग',   img:'🎶'},
+  {L:'Y', en:'Yak',       hi:'याक',      img:'🐂'},
+  {L:'Z', en:'Zebra',     hi:'ज़ेबरा',   img:'🦓'},
+];
+
+// NUMBERS 1–10 : number -> object name (en/hi) + emoji used many times
+const NUMBERS = [
+  {N:1,  en:'ball',     hi:'गेंद',     img:'⚽'},
+  {N:2,  en:'apples',   hi:'सेब',      img:'🍎'},
+  {N:3,  en:'stars',    hi:'तारे',     img:'⭐'},
+  {N:4,  en:'flowers',  hi:'फूल',      img:'🌸'},
+  {N:5,  en:'cars',     hi:'गाड़ियाँ',  img:'🚗'},
+  {N:6,  en:'fish',     hi:'मछली',     img:'🐟'},
+  {N:7,  en:'balloons', hi:'गुब्बारे', img:'🎈'},
+  {N:8,  en:'cakes',    hi:'केक',      img:'🍰'},
+  {N:9,  en:'bananas',  hi:'केले',     img:'🍌'},
+  {N:10, en:'cats',     hi:'बिल्लियाँ', img:'🐱'},
+];
+
+/* ── CARS & BIKES alphabet theme ─────────────────────────────────────
+   Uses the same A–Z letters as ALPHABET, but each letter rides in on a
+   car or bike. By default we DRAW colorful vehicles with inline SVG so
+   it works fully offline. To use REAL car photos instead, just add image
+   URLs below ([[ ADD IMAGE HERE ]]) — they are used in order, one per
+   letter, looping if there are fewer images than letters.            */
+// Real car photos from Wikimedia Commons (free to hotlink). These are stable
+// "Special:FilePath" links that redirect to the actual image, sized to 500px.
+// They load when the computer is ONLINE; if a photo can't load (offline), the
+// app automatically falls back to the built-in drawn car/bike so it still works.
+// [[ ADD IMAGE HERE ]] Replace/extend with your own car photo URLs any time.
+const CAR_IMAGES = [
+  'https://commons.wikimedia.org/wiki/Special:FilePath/Aventador%20LP.jpg?width=500',
+  'https://commons.wikimedia.org/wiki/Special:FilePath/2016%20Tesla%20Model%20X%20in%20Lantana%20Florida%201of2.jpg?width=500',
+  'https://commons.wikimedia.org/wiki/Special:FilePath/AC%20Cobra%20-%20Dunsfold%20Wings%20and%20Wheels%202014%20(18777140106).jpg?width=500',
+  'https://commons.wikimedia.org/wiki/Special:FilePath/Alpina%20Z8%20hardtop.jpg?width=500',
+  'https://commons.wikimedia.org/wiki/Special:FilePath/Buick%20Park%20Avenue%201998.jpg?width=500',
+  'https://commons.wikimedia.org/wiki/Special:FilePath/1924%20Alfa%20Romeo%20P2.jpg?width=500',
+];
+const VEHICLE_COLORS = ['#ff5a5f','#3aa0ff','#2ecc71','#ff9f1c',
+                        '#a259ff','#ff5fa2','#21d4b4','#e8590c'];
+// a cute cartoon car
+function carSVG(body){
+  return `<svg viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg">
+    <rect x="8" y="56" width="184" height="34" rx="15" fill="${body}"/>
+    <path d="M42 56 L62 28 H138 L168 56 Z" fill="${body}"/>
+    <path d="M66 32 H98 V53 H50 Z" fill="#cdeeff" opacity=".9"/>
+    <path d="M102 32 H134 L156 53 H102 Z" fill="#cdeeff" opacity=".9"/>
+    <circle cx="56" cy="93" r="17" fill="#222"/><circle cx="56" cy="93" r="7" fill="#ddd"/>
+    <circle cx="150" cy="93" r="17" fill="#222"/><circle cx="150" cy="93" r="7" fill="#ddd"/>
+    <circle cx="186" cy="66" r="6" fill="#ffde59"/>
+  </svg>`;
+}
+// a cute cartoon motorbike
+function bikeSVG(c){
+  return `<svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="46" cy="86" r="28" fill="none" stroke="#222" stroke-width="9"/>
+    <circle cx="154" cy="86" r="28" fill="none" stroke="#222" stroke-width="9"/>
+    <path d="M46 86 L96 86 L120 56 L150 56" stroke="${c}" stroke-width="9"
+          fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M70 86 L96 56 H124" stroke="${c}" stroke-width="9"
+          fill="none" stroke-linecap="round"/>
+    <rect x="88" y="48" width="44" height="13" rx="6" fill="${c}"/>
+    <path d="M150 56 l16 -7" stroke="#222" stroke-width="7" stroke-linecap="round"/>
+  </svg>`;
+}
+// built-in drawn vehicle for slot #i (car on even, bike on odd)
+function vehicleSVG(i){
+  const color = VEHICLE_COLORS[i % VEHICLE_COLORS.length];
+  return (i % 2 === 0) ? carSVG(color) : bikeSVG(color);
+}
+// if a real photo fails to load (e.g. offline), swap in the drawn vehicle
+function vehicleFallback(img, i){ img.parentNode.innerHTML = vehicleSVG(i); }
+// markup for vehicle #i : real photo if available, else drawn car/bike
+function vehicleMarkup(i){
+  if(CAR_IMAGES.length){
+    const url = CAR_IMAGES[i % CAR_IMAGES.length];
+    return `<img src="${url}" alt="car" onerror="vehicleFallback(this, ${i})">`;
+  }
+  return vehicleSVG(i);
+}
+// Sound a letter's word makes (used on a correct answer, e.g. D -> Dog -> "Woof!").
+// [[ ADD SOUND HERE ]] swap these for real animal mp3s if you like.
+const WORD_SFX = {
+  cat:      {en:'Meow! Meow!',           hi:'म्याऊँ! म्याऊँ!'},
+  dog:      {en:'Woof! Woof! Woof!',     hi:'भौं! भौं! भौं!'},
+  elephant: {en:'Pawooo!',               hi:'चिंघाड़!'},
+  fish:     {en:'Blub blub!',            hi:'बुल बुल!'},
+  lion:     {en:'Roar!',                 hi:'दहाड़!'},
+  monkey:   {en:'Ooh ooh aah aah!',      hi:'हुप हुप!'},
+  parrot:   {en:'Squawk! Squawk!',       hi:'टें टें!'},
+  rabbit:   {en:'Hop hop!',              hi:'कूद कूद!'},
+  tiger:    {en:'Grrr! Roar!',           hi:'गुर्र! दहाड़!'},
+  yak:      {en:'Moo!',                  hi:'अंबा!'},
+  zebra:    {en:'Neigh!',                hi:'हिन हिन!'},
+};
+
+// ANIMALS / BIRDS / COLORS for the speaking quiz.
+//   accept[] = spoken answers we will accept (lower case, lang-specific)
+//   say      = onomatopoeia spoken as the "sound"  [[ ADD SOUND HERE ]]
+//   audio    = (optional) real sound file URL; if present it plays instead
+const QUIZ = [
+  {type:'animal', en:'Dog',    hi:'कुत्ता', img:'🐶',
+     accept:{en:['dog','doggy','puppy'], hi:['कुत्ता','कुत्ते','डॉग']},
+     say:{en:'Woof woof', hi:'भौं भौं'} /*, audio:'dog.mp3' */},
+  {type:'animal', en:'Cat',    hi:'बिल्ली', img:'🐱',
+     accept:{en:['cat','kitty','kitten'], hi:['बिल्ली','कैट']},
+     say:{en:'Meow', hi:'म्याऊँ'}},
+  {type:'animal', en:'Cow',    hi:'गाय', img:'🐮',
+     accept:{en:['cow'], hi:['गाय','काउ']},
+     say:{en:'Moo', hi:'अंबा'}},
+  {type:'animal', en:'Lion',   hi:'शेर', img:'🦁',
+     accept:{en:['lion'], hi:['शेर','लायन','सिंह']},
+     say:{en:'Roar', hi:'दहाड़'}},
+  {type:'animal', en:'Elephant', hi:'हाथी', img:'🐘',
+     accept:{en:['elephant'], hi:['हाथी','एलिफेंट']},
+     say:{en:'Pawooo', hi:'चिंघाड़'}},
+  {type:'animal', en:'Monkey', hi:'बंदर', img:'🐵',
+     accept:{en:['monkey'], hi:['बंदर','मंकी']},
+     say:{en:'Ooh ooh aah aah', hi:'हुप हुप'}},
+  {type:'animal', en:'Horse',  hi:'घोड़ा', img:'🐴',
+     accept:{en:['horse'], hi:['घोड़ा','हॉर्स']},
+     say:{en:'Neigh', hi:'हिनहिनाहट'}},
+  {type:'bird',   en:'Parrot', hi:'तोता', img:'🦜',
+     accept:{en:['parrot'], hi:['तोता','पैरट']},
+     say:{en:'Squawk', hi:'टें टें'}},
+  {type:'bird',   en:'Peacock',hi:'मोर', img:'🦚',
+     accept:{en:['peacock'], hi:['मोर','पीकॉक']},
+     say:{en:'May-aw', hi:'म्याऊँ की तरह'}},
+  {type:'bird',   en:'Duck',   hi:'बत्तख', img:'🦆',
+     accept:{en:['duck'], hi:['बत्तख','डक']},
+     say:{en:'Quack quack', hi:'क्वैक क्वैक'}},
+  {type:'color',  en:'Red',    hi:'लाल', img:'🟥',
+     accept:{en:['red'], hi:['लाल','रेड']},
+     say:{en:'Red, like an apple', hi:'लाल, सेब जैसा'}},
+  {type:'color',  en:'Blue',   hi:'नीला', img:'🟦',
+     accept:{en:['blue'], hi:['नीला','ब्लू']},
+     say:{en:'Blue, like the sky', hi:'नीला, आसमान जैसा'}},
+  {type:'color',  en:'Green',  hi:'हरा', img:'🟩',
+     accept:{en:['green'], hi:['हरा','ग्रीन']},
+     say:{en:'Green, like grass', hi:'हरा, घास जैसा'}},
+  {type:'color',  en:'Yellow', hi:'पीला', img:'🟨',
+     accept:{en:['yellow'], hi:['पीला','यलो']},
+     say:{en:'Yellow, like the sun', hi:'पीला, सूरज जैसा'}},
+];
+
+/* ============================================================
+   3. VOICE OUT  (SpeechSynthesis)
+   ============================================================ */
+let voicesReady = false;
+function loadVoices(){ window.speechSynthesis.getVoices(); voicesReady=true; }
+if('speechSynthesis' in window){
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+function pickVoice(langCode){
+  const vs = window.speechSynthesis.getVoices();
+  // prefer exact lang match, then language prefix match
+  return vs.find(v=>v.lang===langCode)
+      || vs.find(v=>v.lang && v.lang.startsWith(langCode.split('-')[0]))
+      || null;
+}
+function speak(text, cb){
+  if(!('speechSynthesis' in window)){ if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = VOICE_LANG[LANG];
+  const v = pickVoice(u.lang); if(v) u.voice = v;
+  u.rate = 0.9; u.pitch = 1.15;   // slightly slow + cheerful for kids
+  if(cb) u.onend = cb;
+  window.speechSynthesis.speak(u);
+}
+// Prefer a female-sounding voice (best-effort across browsers).
+function pickFemaleVoice(langCode){
+  const vs = window.speechSynthesis.getVoices();
+  const lc = langCode.toLowerCase();
+  const inLang = v => v.lang && (v.lang.toLowerCase()===lc ||
+                                 v.lang.toLowerCase().startsWith(lc.split('-')[0]));
+  const hints = ['female','woman','girl','zira','samantha','susan','victoria',
+                 'karen','tessa','fiona','heera','swara','kalpana','aditi','google'];
+  return vs.find(v=> inLang(v) && hints.some(h=> (v.name||'').toLowerCase().includes(h)))
+      || vs.find(inLang) || null;
+}
+// "Little girl" voice: female voice + high pitch so it sounds like a small girl.
+function speakChild(text, cb){
+  if(!('speechSynthesis' in window)){ if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = VOICE_LANG[LANG];
+  const v = pickFemaleVoice(u.lang); if(v) u.voice = v;
+  u.rate = 1.0; u.pitch = 1.9;    // high pitch => cute little-girl voice
+  if(cb) u.onend = cb;
+  window.speechSynthesis.speak(u);
+}
+// Deep "animal" voice for onomatopoeia like a dog's "Woof!".
+function speakLow(text, cb){
+  if(!('speechSynthesis' in window)){ if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = VOICE_LANG[LANG];
+  const v = pickVoice(u.lang); if(v) u.voice = v;
+  u.rate = 0.85; u.pitch = 0.2;   // low pitch => animal-like
+  if(cb) u.onend = cb;
+  window.speechSynthesis.speak(u);
+}
+// Slow + clear voice (used for "Bye bye, <name>!").
+function speakSlow(text, cb){
+  if(!('speechSynthesis' in window)){ if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = VOICE_LANG[LANG];
+  const v = pickFemaleVoice(u.lang); if(v) u.voice = v;
+  u.rate = 0.55; u.pitch = 1.2;   // slow & clear
+  if(cb) u.onend = cb;
+  window.speechSynthesis.speak(u);
+}
+// Play the sound the letter's word makes (bark/meow/...) then call cb.
+function playWordSound(item, cb){
+  const sfx = WORD_SFX[(item.en || '').toLowerCase()];
+  // [[ ADD SOUND HERE ]] real sound: new Audio('dog.mp3').play(); then cb();
+  if(sfx) speakLow(sfx[LANG], cb);
+  else if(cb) cb();
+}
+
+/* ============================================================
+   4. SOUNDS  (Web Audio API — happy chime, no files needed)
+   ============================================================ */
+let audioCtx = null;
+function ac(){ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function tone(freq, start, dur, type='sine', vol=0.25){
+  const c = ac();
+  const o = c.createOscillator(), g = c.createGain();
+  o.type=type; o.frequency.value=freq; o.connect(g); g.connect(c.destination);
+  const t0 = c.currentTime + start;
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(vol, t0+0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t0+dur);
+  o.start(t0); o.stop(t0+dur+0.02);
+}
+function rewardSound(){            // happy rising arpeggio 🎉
+  [523,659,784,1047].forEach((f,i)=> tone(f, i*0.12, 0.25, 'triangle', 0.3));
+}
+function buzzSound(){              // gentle "try again" wobble
+  tone(300,0,0.15,'sine',0.2); tone(240,0.16,0.2,'sine',0.2);
+}
+// short burst of filtered white noise — building block for claps & cheers
+function noiseBurst(start, dur, vol, highpass){
+  const c = ac();
+  const buf = c.createBuffer(1, Math.max(1, Math.ceil(c.sampleRate*dur)), c.sampleRate);
+  const data = buf.getChannelData(0);
+  for(let i=0;i<data.length;i++) data[i] = Math.random()*2 - 1;
+  const src = c.createBufferSource(); src.buffer = buf;
+  const f = c.createBiquadFilter(); f.type='highpass'; f.frequency.value = highpass;
+  const g = c.createGain();
+  src.connect(f); f.connect(g); g.connect(c.destination);
+  const t0 = c.currentTime + start;
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+  src.start(t0); src.stop(t0 + dur + 0.02);
+}
+function clapSound(){              // a quick round of hand claps 👏
+  [0, .14, .28, .40, .52, .66, .80].forEach(t=> noiseBurst(t, 0.06, 0.55, 1600));
+}
+function cheerSound(){             // crowd-like "yaaay" swell + sparkle 🎉
+  noiseBurst(0, 1.0, 0.22, 500);   // whoosh of a happy crowd
+  rewardSound();                   // sparkly chime on top
+}
+// [[ ADD SOUND HERE ]] To use real applause/cheer files instead, play them here:
+//   new Audio('cheer.mp3').play(); new Audio('clap.mp3').play();
+function applauseSound(){ clapSound(); cheerSound(); }
+// engine rev "vroom" for the cars & bikes mode 🚗
+// [[ ADD SOUND HERE ]] for a real engine sound:  new Audio('engine.mp3').play();
+function vroomSound(){
+  const c = ac();
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = 'sawtooth';
+  const t0 = c.currentTime;
+  o.frequency.setValueAtTime(70, t0);
+  o.frequency.exponentialRampToValueAtTime(240, t0+0.55);  // rev up
+  o.frequency.exponentialRampToValueAtTime(120, t0+1.1);   // ease off
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(0.28, t0+0.1);
+  g.gain.linearRampToValueAtTime(0.2, t0+0.7);
+  g.gain.exponentialRampToValueAtTime(0.001, t0+1.2);
+  o.connect(g); g.connect(c.destination);
+  o.start(t0); o.stop(t0+1.25);
+  noiseBurst(0, 0.5, 0.07, 80);          // a little engine rumble
+}
+
+/* ============================================================
+   5. NAVIGATION
+   ============================================================ */
+let childName = '';
+let history = [];                 // for back button
+function show(id, addToHistory=true){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el = document.getElementById(id);
+  el.classList.add('active');
+  // back button visible everywhere except greeting
+  document.getElementById('backBtn').style.display = (id==='screen-greet') ? 'none' : 'inline-flex';
+  if(addToHistory && history[history.length-1]!==id) history.push(id);
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  // clean up any lingering helper keyboard / celebration overlay
+  hideKeyboard();
+  const ov = document.getElementById('rainOverlay');
+  if(ov){ ov.classList.remove('show'); ov.innerHTML=''; ov.onclick=null; }
+  // stop the picture-show slideshow/music when navigating away
+  if(id!=='screen-gallery-show') stopSlideshow();
+}
+document.getElementById('backBtn').onclick = ()=>{
+  stopRecognition();
+  if(history.length>1){ history.pop(); show(history[history.length-1], false); }
+  else show('screen-greet', false);
+};
+
+/* ============================================================
+   6. GREETING
+   ============================================================ */
+const nameInput = document.getElementById('nameInput');
+document.getElementById('greetBtn').onclick = ()=>{
+  ac();  // unlock audio on first user gesture
+  childName = (nameInput.value || (LANG==='en'?'friend':'दोस्त')).trim();
+  document.getElementById('menuGreet').textContent =
+       (LANG==='en'? `Hi ${childName}! 😊` : `नमस्ते ${childName}! 😊`);
+  show('screen-menu');
+  speak(SAY.greet(childName), ()=> speak(SAY.menuHi(childName)));
+};
+
+/* ============================================================
+   7. MAIN MENU ROUTING
+   ============================================================ */
+let currentTopic = null;          // 'alpha' | 'num'
+let theme = 'plain';              // 'plain' | 'cars'
+document.querySelectorAll('[data-go]').forEach(b=>{
+  b.onclick = ()=>{
+    const go = b.getAttribute('data-go');
+    if(go==='ani'){ theme='plain'; startQuiz(); return; }
+    if(go==='gallery'){ theme='plain'; openGallery(); return; }
+    if(go==='cars'){             // Cars & Bikes: themed alphabet, jump straight in
+      theme='cars'; currentTopic='alpha'; playMode='A'; startPlay(); return;
+    }
+    theme = 'plain';
+    currentTopic = go;
+    document.getElementById('modeTitle').textContent = (go==='alpha')?'🔤':'🔢';
+    show('screen-mode');
+    speak(SAY.pickMode());
+  };
+});
+
+/* ============================================================
+   8. MODE SELECT
+   ============================================================ */
+let playMode = 'A';               // 'A' watch&find, 'B' press-to-explore
+document.getElementById('modeA').onclick = ()=>{ playMode='A'; startPlay(); };
+document.getElementById('modeB').onclick = ()=>{ playMode='B'; startPlay(); };
+
+/* ============================================================
+   9. PLAY SCREEN  (letters & numbers, Modes A & B)
+   ============================================================ */
+const playCard = document.getElementById('playCard');
+const playWord = document.getElementById('playWord');
+const playObjects = document.getElementById('playObjects');
+const playHint = document.getElementById('playHint');
+const playFeedback = document.getElementById('playFeedback');
+
+let idx = 0;                      // index into ALPHABET / NUMBERS
+function dataset(){ return currentTopic==='alpha' ? ALPHABET : NUMBERS; }
+function itemKey(item){ return currentTopic==='alpha' ? item.L : String(item.N); }
+
+function renderPic(target, img){
+  // detects URL vs emoji  [[ ADD IMAGE HERE ]]
+  if(typeof img==='string' && img.startsWith('http')){
+    target.innerHTML = `<img src="${img}" alt="">`;
+  } else {
+    target.textContent = img;
+  }
+}
+
+function startPlay(){
+  idx = 0;
+  show('screen-play');
+  presentItem();
+}
+
+function presentItem(){
+  const item = dataset()[idx];
+  failCount = 0;            // reset wrong-try counter for this item
+  hideKeyboard();           // hide the help keyboard until needed
+  playFeedback.textContent = '';
+  playObjects.innerHTML = '';
+  playCard.classList.remove('celebrate');
+
+  // Cars & Bikes theme: drive a vehicle in with the letter on top
+  document.getElementById('screen-play').classList.toggle('theme-cars', theme==='cars');
+  if(theme==='cars'){ renderCar(item); return; }
+
+  if(currentTopic==='alpha'){
+    playCard.textContent = item.L;
+  } else {
+    playCard.textContent = item.N;
+  }
+  playCard.classList.add('bounce');
+
+  if(playMode==='A'){
+    // Mode A: show + speak symbol, ask child to press the matching key
+    playWord.textContent = '';
+    if(currentTopic==='alpha'){
+      speak(item.L + '. ' , ()=> speak(SAY.pressKey(item.L)));
+      playHint.textContent = (LANG==='en') ? `Press  ${item.L}  on the keyboard` : `कीबोर्ड पर  ${item.L}  दबाओ`;
+    } else {
+      showObjects(item);
+      speak(SAY.numHas(item.N, item[LANG]), ()=> speak(SAY.pressNum(item.N)));
+      playHint.textContent = (LANG==='en') ? `Press  ${item.N}  on the keyboard` : `कीबोर्ड पर  ${item.N}  दबाओ`;
+    }
+  } else {
+    // Mode B: reveal word + picture, speak "A for Apple"
+    revealWord(item);
+    playHint.textContent = (LANG==='en')
+        ? `Press any key to explore, or press ${itemKey(item)} for next`
+        : `कोई भी बटन दबाओ, या आगे के लिए ${itemKey(item)} दबाओ`;
+  }
+}
+
+// Cars & Bikes: a vehicle drives in carrying the letter; engine vrooms.
+function setFace(state){
+  const f = document.getElementById('carFace');
+  if(f) f.textContent = (state==='scared') ? '😱' : '🙂';
+}
+function renderCar(item){
+  const v  = document.getElementById('vehicle');
+  const vi = document.getElementById('vehicleImg');
+  const vl = document.getElementById('vehicleLetter');
+  vl.textContent = item.L;
+  vi.innerHTML = vehicleMarkup(idx);         // real image or built-in SVG
+  setFace('happy');
+  v.classList.remove('drive','whirl','scared','drive-away');
+  void v.offsetWidth; v.classList.add('drive');     // restart drive-in
+  vroomSound();
+  playWord.textContent = '';
+  playHint.textContent = (LANG==='en') ? `Press  ${item.L}  on the keyboard`
+                                       : `कीबोर्ड पर  ${item.L}  दबाओ`;
+  speak(item.L + '. ', ()=> speak(SAY.pressKey(item.L)));
+}
+// wrong key in cars mode: spin the car
+function whirlCar(){
+  const v = document.getElementById('vehicle');
+  v.classList.remove('whirl'); void v.offsetWidth; v.classList.add('whirl');
+}
+// rain items (emoji or image URLs) over the bright screen for durationMs
+function rainOver(items, durationMs){
+  const layer = document.getElementById('fallLayer');
+  layer.innerHTML = ''; layer.classList.add('show');
+  const interval = setInterval(()=>{
+    for(let k=0;k<3;k++){
+      const content = items[Math.floor(Math.random()*items.length)];
+      const { node, life } = makeFaller(content, 40 + Math.random()*70);
+      layer.appendChild(node);
+      setTimeout(()=> node.remove(), life);
+    }
+  }, 180);
+  setTimeout(()=>{ clearInterval(interval); layer.classList.remove('show'); layer.innerHTML=''; },
+             durationMs);
+}
+
+// correct key in cars mode: "A for Apple!" -> many apples + car rain ->
+// (animal sound if any) -> car looks scared -> "Bye bye, <name>!" slow -> next
+function carCelebration(item){
+  applauseSound();
+  const v = document.getElementById('vehicle');
+  const word = item[LANG];
+  // rain MANY of the word's picture (e.g. apples) plus a few cars over the screen
+  rainOver([item.img, item.img, item.img, '🚗'], 5000);
+  const yes = (LANG==='en')
+      ? `Yes! You are right! ${item.L} for ${word}!`
+      : `हाँ! बिल्कुल सही! ${item.L} से ${word}!`;
+  speakChild(yes, ()=>{
+    playWordSound(item, ()=>{                 // animal sound if the word is an animal
+      v.classList.add('scared'); setFace('scared');   // car gets scared & shakes
+      setTimeout(()=>{
+        v.classList.remove('drive','whirl','scared');
+        void v.offsetWidth; v.classList.add('drive-away');   // zoom off
+        // the car says goodbye to the child — slow and very clear
+        const bye = (LANG==='en') ? `Bye bye, ${childName}!` : `बाय बाय, ${childName}!`;
+        speakSlow(bye, ()=> setTimeout(advance, 700));
+      }, 800);
+    });
+  });
+}
+
+function showObjects(item){
+  playObjects.innerHTML='';
+  for(let i=0;i<item.N;i++){
+    const s = document.createElement('span');
+    renderPic(s, item.img);
+    s.style.animationDelay = (i*0.1)+'s';
+    playObjects.appendChild(s);
+  }
+}
+
+function revealWord(item){
+  if(currentTopic==='alpha'){
+    playWord.innerHTML = `${item.L} — <b>${item[LANG]}</b>`;
+    // show picture as a big object too
+    playObjects.innerHTML=''; const s=document.createElement('span');
+    renderPic(s, item.img); playObjects.appendChild(s);
+    speak(SAY.forWord(item.L, item[LANG]));
+  } else {
+    playWord.innerHTML = `${item.N} — <b>${item[LANG]}</b>`;
+    showObjects(item);
+    speak(SAY.numHas(item.N, item[LANG]));
+  }
+}
+
+function celebrate(){
+  playCard.classList.remove('bounce');
+  playCard.classList.add('celebrate');
+  rewardSound();
+  playFeedback.style.color = 'var(--green)';
+  playFeedback.textContent = (LANG==='en') ? '🎉 ' + 'Yay!' : '🎉 शाबाश!';
+}
+
+function advance(){
+  idx++;
+  if(idx >= dataset().length){
+    // finished the set 🎊
+    playCard.textContent = '🏆';
+    playWord.textContent = (LANG==='en') ? `Great job, ${childName}!` : `बहुत बढ़िया, ${childName}!`;
+    playObjects.innerHTML=''; playHint.textContent=''; playFeedback.textContent='';
+    rewardSound();
+    speak((LANG==='en')?`You finished! Great job ${childName}!`:`तुमने पूरा कर लिया! बहुत बढ़िया ${childName}!`);
+    idx = 0;
+    return;
+  }
+  presentItem();
+}
+
+// How many wrong tries before we pop up the on-screen helper keyboard.
+// (Set to 3 = help appears once the child has missed 3 times. Adjust freely.)
+const FAIL_HELP = 3;
+let failCount = 0;
+const keyboardEl = document.getElementById('keyboard');
+
+// Turn a raw key into the number it means (0 -> 10, "10" -> 10), or null.
+function keyToNumber(k){
+  if(k==='10') return 10;
+  if(/^[0-9]$/.test(k)) return k==='0' ? 10 : parseInt(k,10);
+  return null;
+}
+
+// Shared handler used by BOTH the physical keyboard and the on-screen keys.
+function handlePlayKey(rawKey){
+  if(!document.getElementById('screen-play').classList.contains('active')) return;
+  const item = dataset()[idx];
+
+  if(playMode==='A'){
+    let match = false;
+    if(currentTopic==='alpha'){
+      if(!/^[a-zA-Z]$/.test(rawKey)) return;     // ignore non-letters
+      match = rawKey.toLowerCase() === item.L.toLowerCase();
+    } else {
+      const n = keyToNumber(rawKey);
+      if(n===null) return;                        // ignore non-numbers
+      match = (n === item.N);
+    }
+    if(match) onCorrectKey(item); else onWrongKey(item);
+  } else {
+    // Mode B: any letter/number jumps to THAT item and explores it
+    if(currentTopic==='alpha' && /^[a-zA-Z]$/.test(rawKey)){
+      idx = ALPHABET.findIndex(x=>x.L===rawKey.toUpperCase());
+      if(idx<0) idx=0; presentItem();
+    } else if(currentTopic==='num'){
+      const n = keyToNumber(rawKey);
+      if(n!==null){ idx = NUMBERS.findIndex(x=>x.N===n); if(idx<0) idx=0; presentItem(); }
+    }
+  }
+}
+
+function onWrongKey(item){
+  failCount++;
+  buzzSound();
+  playFeedback.style.color='var(--red)';
+  playFeedback.textContent = (LANG==='en') ? '❌ Try again' : '❌ फिर से';
+  if(theme==='cars') whirlCar();              // spin the car on a wrong key
+  if(failCount >= FAIL_HELP){
+    showKeyboard(item);     // show keyboard + glow the correct key
+    const help = (LANG==='en') ? `Here is the keyboard. Press the glowing key.`
+                               : `यह रहा कीबोर्ड। चमकता हुआ बटन दबाओ।`;
+    (theme==='cars' ? speakChild : speak)(help);
+  } else if(theme==='cars'){
+    speakChild((LANG==='en') ? 'No! Try again!' : 'नहीं! फिर से कोशिश करो!');
+  } else {
+    speak(SAY.tryAgain());
+  }
+}
+
+function onCorrectKey(item){
+  hideKeyboard();
+  if(theme==='cars'){          // cars get their own scripted reaction
+    carCelebration(item);
+    return;
+  }
+  applauseSound();                               // 👏 claps + 🎉 cheers
+  const symbol = currentTopic==='alpha' ? item.L : String(item.N);
+  revealWord(item);                              // show word + picture reward
+  const message = currentTopic==='alpha'
+      ? SAY.girlAlpha(childName, item.L, item[LANG])
+      : SAY.girlNum(childName, item.N, item[LANG]);
+  // rain the letter/number AND the picture for 10s; the girl says the message
+  rainCelebration(symbol, item.img, message, ()=> advance());
+}
+
+// Build & show the on-screen keyboard with the correct key glowing/zooming.
+function showKeyboard(item){
+  keyboardEl.innerHTML = '';
+  const rows = (currentTopic==='alpha')
+      ? ['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'].map(r=>r.split(''))
+      : [['1','2','3','4','5'], ['6','7','8','9','10']];
+  const targetKey = (currentTopic==='alpha') ? item.L : String(item.N);
+  rows.forEach(r=>{
+    const rowEl = document.createElement('div'); rowEl.className='krow';
+    r.forEach(k=>{
+      const b = document.createElement('button');
+      b.className = 'key' + (k===targetKey ? ' target' : '');
+      b.textContent = k;
+      b.onclick = ()=> handlePlayKey(k);          // tappable for tablets
+      rowEl.appendChild(b);
+    });
+    keyboardEl.appendChild(rowEl);
+  });
+  keyboardEl.classList.add('show');
+  document.getElementById('screen-play').classList.add('kbd-open');  // compact layout
+}
+function hideKeyboard(){
+  keyboardEl.classList.remove('show'); keyboardEl.innerHTML='';
+  document.getElementById('screen-play').classList.remove('kbd-open');
+}
+
+// Helper: make one falling element showing either an emoji/letter or a picture URL.
+function makeFaller(content, size){
+  const f = document.createElement('div');
+  f.className = 'faller';
+  renderPic(f, content);                 // handles emoji/letter OR http image URL
+  if(!(typeof content==='string' && content.startsWith('http'))) f.style.fontSize = size + 'px';
+  f.style.left = (Math.random()*92) + 'vw';
+  const dur = 2 + Math.random()*3;
+  f.style.animationDuration = dur + 's';
+  return { node:f, life:dur*1000 + 400 };
+}
+
+// Dark full-screen overlay: the big letter/number AND its picture fall top->bottom
+// for 10s, with a shower of both + confetti. Tap anywhere to skip early.
+function rainCelebration(symbol, picture, message, cb){
+  const ov = document.getElementById('rainOverlay');
+  ov.innerHTML = '';
+  ov.classList.add('show');
+  // two big "heroes" falling together: the letter/number and its picture
+  const hero1 = document.createElement('div');
+  hero1.className = 'hero'; hero1.textContent = symbol; hero1.style.left = '24vw';
+  const hero2 = document.createElement('div');
+  hero2.className = 'hero'; hero2.style.left = '56vw'; hero2.style.animationDelay = '1.2s';
+  renderPic(hero2, picture);
+  ov.appendChild(hero1); ov.appendChild(hero2);
+  // a friendly little girl appears with a speech bubble and says the message
+  // [[ ADD IMAGE HERE ]] swap the 👧 emoji for a real girl image/GIF if you like
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble'; bubble.textContent = message;
+  const girl = document.createElement('div');
+  girl.className = 'girl'; girl.textContent = '👧';
+  ov.appendChild(bubble); ov.appendChild(girl);
+  speakChild(message);                 // spoken in the little-girl voice
+  // continuous shower: letter, picture, and fun confetti mixed together
+  const fun = ['⭐','🎉','✨','🎈','🌈','💫','🎊','🏆'];
+  const interval = setInterval(()=>{
+    for(let i=0;i<3;i++){
+      const r = Math.random();
+      const content = r<0.4 ? symbol
+                    : r<0.75 ? picture
+                    : fun[Math.floor(Math.random()*fun.length)];
+      const { node, life } = makeFaller(content, 40 + Math.random()*70);
+      ov.appendChild(node);
+      setTimeout(()=> node.remove(), life);
+    }
+  }, 200);
+  rewardSound();
+  let done = false;
+  const finish = ()=>{
+    if(done) return; done = true;
+    clearInterval(interval);
+    ov.classList.remove('show');
+    ov.innerHTML = '';
+    ov.onclick = null;
+    if(cb) cb();
+  };
+  ov.onclick = finish;            // tap to skip
+  setTimeout(finish, 10000);      // 10 seconds, as requested
+}
+
+// physical keyboard -> shared handler
+document.addEventListener('keydown', (e)=> handlePlayKey(e.key));
+
+document.getElementById('repeatBtn').onclick = ()=>{
+  const item = dataset()[idx];
+  if(playMode==='A'){
+    if(currentTopic==='alpha') speak(item.L+'. ', ()=>speak(SAY.pressKey(item.L)));
+    else speak(SAY.numHas(item.N,item[LANG]), ()=>speak(SAY.pressNum(item.N)));
+  } else revealWord(item);
+};
+document.getElementById('nextBtn').onclick = ()=> advance();
+
+/* ============================================================
+   10. ANIMALS / BIRDS / COLORS QUIZ  (SpeechRecognition)
+   ============================================================ */
+const quizPic = document.getElementById('quizPic');
+const quizFeedback = document.getElementById('quizFeedback');
+const quizHintEl = document.getElementById('quizHint');
+const micBtn = document.getElementById('micBtn');
+
+let qIdx = 0, tries = 0, recog = null, recognizing = false;
+let quizOrder = [];
+
+function shuffle(a){ const r=a.slice(); for(let i=r.length-1;i>0;i--){ const j=Math.floor((i+1)*0.5+ (i*0.13%1)*i); const k=Math.min(j,i); [r[i],r[k]]=[r[k],r[i]];} return r; }
+// (simple deterministic-ish shuffle; randomness not essential for a kid app)
+
+function startQuiz(){
+  quizOrder = QUIZ.slice();   // keep curriculum order; could shuffle if desired
+  qIdx = 0;
+  show('screen-quiz');
+  presentQuiz();
+}
+
+function presentQuiz(){
+  tries = 0;
+  const q = quizOrder[qIdx];
+  renderPic(quizPic, q.img);
+  quizFeedback.textContent = '';
+  quizHintEl.textContent = t('whatIsThis');
+  speak(SAY.whatIs());
+}
+
+function normalize(s){ return (s||'').toLowerCase().trim().replace(/[।.!?]/g,''); }
+
+function checkAnswer(heard){
+  const q = quizOrder[qIdx];
+  const acc = (q.accept[LANG]||[]).map(normalize);
+  const said = normalize(heard);
+  // accept if any accepted word is contained in what was heard
+  const ok = acc.some(a=> said===a || said.includes(a) || a.includes(said) && said.length>1);
+  if(ok){
+    correctQuiz();
+  } else {
+    tries++;
+    quizFeedback.style.color='var(--red)';
+    quizFeedback.textContent = (LANG==='en') ? `🙉 I heard "${heard}". Try again!` : `🙉 मैंने सुना "${heard}"। फिर से!`;
+    buzzSound();
+    if(tries>=3){
+      revealAnswer();
+    } else {
+      speak(SAY.tryAgain(), ()=> speak(SAY.whatIs()));
+    }
+  }
+}
+
+function correctQuiz(){
+  const q = quizOrder[qIdx];
+  quizPic.classList.add('celebrate');
+  setTimeout(()=>quizPic.classList.remove('celebrate'),700);
+  applauseSound();        // 👏 claps + 🎉 cheers
+  quizFeedback.style.color='var(--green)';
+  quizFeedback.textContent = (LANG==='en') ? `🎉 Yes! It's a ${q[LANG]}!` : `🎉 हाँ! यह ${q[LANG]} है!`;
+  // praise, then play the animal/color sound
+  speak(SAY.correct(childName), ()=> playCreatureSound(q, ()=> setTimeout(nextQuiz, 900)));
+}
+
+function revealAnswer(){
+  const q = quizOrder[qIdx];
+  quizFeedback.style.color='var(--purple)';
+  quizFeedback.textContent = (LANG==='en') ? `It's a ${q[LANG]}!` : `यह ${q[LANG]} है!`;
+  // speak the correct name + play its sound, then advance
+  speak(SAY.itIs(q[LANG]), ()=> playCreatureSound(q, ()=> setTimeout(nextQuiz, 1000)));
+}
+
+function playCreatureSound(q, cb){
+  // [[ ADD SOUND HERE ]] If q.audio is a real file URL, play it; else speak the sound word.
+  if(q.audio){
+    try{
+      const a = new Audio(q.audio);
+      a.onended = cb; a.play().catch(()=>{ speak(q.say[LANG], cb); });
+      return;
+    }catch(e){ /* fall through */ }
+  }
+  speak(q.say[LANG], cb);
+}
+
+function nextQuiz(){
+  qIdx++;
+  if(qIdx>=quizOrder.length){
+    quizPic.textContent='🏆';
+    quizHintEl.textContent = (LANG==='en')?`Great job, ${childName}!`:`बहुत बढ़िया, ${childName}!`;
+    quizFeedback.textContent='🎉🎉🎉';
+    rewardSound();
+    speak((LANG==='en')?`You did it ${childName}! You are so smart!`:`तुमने कर दिखाया ${childName}! तुम बहुत होशियार हो!`);
+    qIdx=0;
+    return;
+  }
+  presentQuiz();
+}
+
+/* ---- SpeechRecognition setup ---- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function startRecognition(){
+  if(!SR){
+    quizFeedback.style.color='var(--red)';
+    quizFeedback.textContent = (LANG==='en')
+      ? '🎤 Voice input needs Chrome. Use the Next button.'
+      : '🎤 आवाज़ के लिए Chrome चाहिए। आगे बटन दबाओ।';
+    return;
+  }
+  stopRecognition();
+  recog = new SR();
+  recog.lang = VOICE_LANG[LANG];
+  recog.interimResults = false;
+  recog.maxAlternatives = 3;
+  recognizing = true;
+  micBtn.classList.add('listening');
+  quizHintEl.textContent = SAY.listen();
+  recog.onresult = (ev)=>{
+    // check every alternative against accepted words
+    let best = ev.results[0][0].transcript;
+    const q = quizOrder[qIdx];
+    const acc = (q.accept[LANG]||[]).map(normalize);
+    for(let i=0;i<ev.results[0].length;i++){
+      const alt = normalize(ev.results[0][i].transcript);
+      if(acc.some(a=> alt.includes(a))){ best = ev.results[0][i].transcript; break; }
+    }
+    checkAnswer(best);
+  };
+  recog.onerror = (ev)=>{
+    quizFeedback.style.color='var(--red)';
+    quizFeedback.textContent = (LANG==='en')?'🎤 Did not hear. Try again!':'🎤 सुनाई नहीं दिया। फिर से!';
+  };
+  recog.onend = ()=>{ recognizing=false; micBtn.classList.remove('listening'); };
+  try{ recog.start(); }catch(e){}
+}
+function stopRecognition(){
+  if(recog){ try{ recog.stop(); }catch(e){} }
+  recognizing=false; micBtn.classList.remove('listening');
+}
+micBtn.onclick = ()=>{ ac(); startRecognition(); };
+document.getElementById('quizRepeat').onclick = ()=> speak(SAY.whatIs());
+document.getElementById('quizNext').onclick = ()=>{ stopRecognition(); nextQuiz(); };
+
+/* ============================================================
+   10b. PICTURE SHOW  (pick a folder -> random slideshow + music)
+   ============================================================ */
+let galleryData = null;           // { category: {images:[File], audio:[File]} }
+let slideFiles = [], slideAudio = [], slideIdx = 0;
+let slideTimer = null, currentAudio = null, slidePaused = false, lastSlideUrl = null;
+
+const ENTRANCES = ['a-zoomin','a-zoomout','a-wipe','a-disperse','a-slide','a-spin','a-flip','a-bounce'];
+const EXITS     = ['a-ex-wipe','a-ex-disperse','a-ex-zoom','a-ex-fall'];
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+// what kind of file is this? (uses MIME, falls back to extension)
+function fileKind(f){
+  const t = (f.type||'').toLowerCase();
+  if(t.startsWith('image')) return 'images';
+  if(t.startsWith('audio')) return 'audio';
+  const ext = (f.name.split('.').pop()||'').toLowerCase();
+  if(['jpg','jpeg','png','gif','webp','bmp','svg','avif'].includes(ext)) return 'images';
+  if(['mp3','wav','ogg','m4a','aac','flac','opus'].includes(ext)) return 'audio';
+  return null;
+}
+// clean file name for speaking: "Mahatma_Gandhi.jpg" -> "Mahatma Gandhi"
+function fileBaseName(fn){
+  return fn.replace(/\.[^.]+$/,'').replace(/[_\-]+/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function openGallery(){
+  if(galleryData && Object.keys(galleryData).length){
+    buildCatButtons(); show('screen-gallery-cats');
+    speak(LANG==='en' ? 'Choose a folder to see pictures.' : 'तस्वीरें देखने के लिए फ़ोल्डर चुनो।');
+  } else {
+    show('screen-gallery-pick');
+    speak(LANG==='en' ? 'Open your pictures folder.' : 'अपना तस्वीरों वाला फ़ोल्डर खोलो।');
+  }
+}
+
+document.getElementById('pickFolderBtn').onclick = ()=>{ ac(); document.getElementById('folderInput').click(); };
+document.getElementById('folderInput').onchange = (e)=>{
+  const files = Array.from(e.target.files || []);
+  const cats = {};
+  files.forEach(f=>{
+    const kind = fileKind(f); if(!kind) return;
+    const parts = (f.webkitRelativePath || f.name).split('/');
+    // category = immediate subfolder under the chosen root, else the root itself
+    const cat = (parts.length >= 3) ? parts[1] : (parts[0] || 'All');
+    (cats[cat] = cats[cat] || {images:[], audio:[]})[kind].push(f);
+  });
+  // keep only categories that actually have images
+  galleryData = {};
+  Object.keys(cats).forEach(c=>{ if(cats[c].images.length) galleryData[c] = cats[c]; });
+  if(!Object.keys(galleryData).length){
+    alert(t('noImages'));
+    return;
+  }
+  buildCatButtons();
+  show('screen-gallery-cats');
+  speak(LANG==='en' ? 'Great! Choose a folder to see pictures.' : 'बढ़िया! तस्वीरें देखने के लिए फ़ोल्डर चुनो।');
+};
+
+const CAT_COLORS = ['var(--pink)','var(--blue)','var(--green)','var(--orange)','var(--purple)','var(--teal)'];
+const CAT_ICONS  = {family:'👨‍👩‍👧‍👦', animals:'🦁', cars:'🚗', gods:'🕉️',
+                    'freedom fighters':'🎖️', 'freedom-fighters':'🎖️', birds:'🦜', flowers:'🌸'};
+function buildCatButtons(){
+  const wrap = document.getElementById('catButtons');
+  wrap.innerHTML = '';
+  Object.keys(galleryData).forEach((cat, i)=>{
+    const b = document.createElement('button');
+    b.className = 'btn cat-btn';
+    b.style.background = CAT_COLORS[i % CAT_COLORS.length];
+    const icon = CAT_ICONS[cat.toLowerCase()] || '📁';
+    const count = galleryData[cat].images.length;
+    b.innerHTML = `${icon} <span style="text-transform:capitalize">${cat}</span> (${count})`;
+    b.onclick = ()=> startSlideshow(cat);
+    wrap.appendChild(b);
+  });
+}
+
+function startSlideshow(cat){
+  const c = galleryData[cat];
+  slideFiles = c.images.slice().sort(()=> Math.random()-0.5);   // random order
+  slideAudio = c.audio;
+  slideIdx = 0; slidePaused = false;
+  document.getElementById('slidePause').textContent = '⏸️';
+  show('screen-gallery-show');
+  startMusic();
+  showCurrentSlide();
+}
+
+function startMusic(){
+  stopMusic();
+  if(slideAudio.length){
+    const track = pick(slideAudio);
+    currentAudio = new Audio(URL.createObjectURL(track));
+    currentAudio.loop = true; currentAudio.volume = 0.5;
+    currentAudio.play().catch(()=>{});   // needs the earlier user gesture (it has one)
+  }
+}
+function stopMusic(){ if(currentAudio){ try{ currentAudio.pause(); }catch(e){} currentAudio = null; } }
+
+function setSlideImage(file){
+  const img = document.getElementById('slideImg');
+  if(lastSlideUrl) URL.revokeObjectURL(lastSlideUrl);
+  lastSlideUrl = URL.createObjectURL(file);
+  img.src = lastSlideUrl;
+}
+function showCaption(name){ const c=document.getElementById('slideCaption'); c.textContent=name; c.classList.add('show'); }
+function hideCaption(){ const c=document.getElementById('slideCaption'); c.classList.remove('show'); }
+
+// play an animation class on the image, then call cb once (on animationend)
+function playAnim(el, cls, cb){
+  ENTRANCES.concat(EXITS).forEach(c=> el.classList.remove(c));
+  void el.offsetWidth;                 // restart animation
+  el.classList.add(cls);
+  const handler = ()=>{ el.removeEventListener('animationend', handler); if(cb) cb(); };
+  el.addEventListener('animationend', handler);
+}
+
+function showCurrentSlide(){
+  if(!slideFiles.length) return;
+  const img = document.getElementById('slideImg');
+  const file = slideFiles[slideIdx];
+  hideCaption();
+  setSlideImage(file);
+  playAnim(img, pick(ENTRANCES), ()=>{         // catchy entrance
+    if(slidePaused) return;
+    clearTimeout(slideTimer);
+    slideTimer = setTimeout(afterHold, 2000);  // hold 2 seconds
+  });
+}
+
+function afterHold(){
+  if(slidePaused) return;
+  const file = slideFiles[slideIdx];
+  const name = fileBaseName(file.name);
+  showCaption(name);
+  // say the picture's name, then "bye", then move to the next picture
+  speak(name, ()=> speak(LANG==='en' ? 'Bye!' : 'बाय!', ()=>{ if(!slidePaused) slideStep(+1); }));
+}
+
+// move by dir (+1 next, -1 prev) with an exit animation, then show the new slide
+function slideStep(dir){
+  const img = document.getElementById('slideImg');
+  clearTimeout(slideTimer);
+  playAnim(img, pick(EXITS), ()=>{
+    slideIdx = (slideIdx + dir + slideFiles.length) % slideFiles.length;
+    showCurrentSlide();
+  });
+}
+
+function togglePause(){
+  slidePaused = !slidePaused;
+  const btn = document.getElementById('slidePause');
+  if(slidePaused){
+    clearTimeout(slideTimer);
+    if(window.speechSynthesis) window.speechSynthesis.cancel();
+    if(currentAudio) currentAudio.pause();
+    btn.textContent = '▶️';
+  } else {
+    if(currentAudio) currentAudio.play().catch(()=>{});
+    btn.textContent = '⏸️';
+    clearTimeout(slideTimer);
+    slideTimer = setTimeout(afterHold, 1200);
+  }
+}
+
+function stopSlideshow(){
+  clearTimeout(slideTimer);
+  if(window.speechSynthesis) window.speechSynthesis.cancel();
+  stopMusic();
+  slidePaused = false;
+}
+
+document.getElementById('slideNext').onclick  = ()=>{ if(window.speechSynthesis) window.speechSynthesis.cancel(); slideStep(+1); };
+document.getElementById('slidePrev').onclick  = ()=>{ if(window.speechSynthesis) window.speechSynthesis.cancel(); slideStep(-1); };
+document.getElementById('slidePause').onclick = togglePause;
+// tap the picture to go to the next one
+document.getElementById('slideStage').onclick = ()=>{ if(window.speechSynthesis) window.speechSynthesis.cancel(); slideStep(+1); };
+
+/* ============================================================
+   11. LANGUAGE TOGGLE
+   ============================================================ */
+document.getElementById('langBtn').onclick = ()=>{
+  LANG = (LANG==='en') ? 'hi' : 'en';
+  applyI18n();
+  // re-render whatever screen is active so words/voice switch language
+  const active = document.querySelector('.screen.active').id;
+  if(active==='screen-play') presentItem();
+  if(active==='screen-quiz') presentQuiz();
+  if(active==='screen-menu')
+    document.getElementById('menuGreet').textContent =
+        (LANG==='en'? `Hi ${childName}! 😊` : `नमस्ते ${childName}! 😊`);
+};
+
+/* ============================================================
+   12. INIT
+   ============================================================ */
+applyI18n();
+nameInput.focus();
+// Allow Enter on the name box to start
+nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('greetBtn').click(); });
+</script>

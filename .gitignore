@@ -1,0 +1,6 @@
+# Personal/local content — user-supplied at runtime via the Picture Show
+# folder picker, not meant to be published or bundled with the app.
+images/
+
+# Stray empty placeholder file
+New Text Document.txt

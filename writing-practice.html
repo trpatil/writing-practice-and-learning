@@ -1,0 +1,1030 @@
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Writing Practice — लेखन अभ्यास</title>
+
+<!-- ══ PWA: manifest + icons + theme color ══
+     Install/offline only works when this file is served over http(s) —
+     service workers cannot register on a file:// page, so opening this
+     file by double-click still works exactly as before; these tags are
+     simply inert in that case (the browser can't fetch/register them). -->
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#a259ff" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Writing Practice" />
+
+<!--
+  ════════════════════════════════════════════════════════════════════
+  WRITING PRACTICE APP  (single file, no frameworks, no backend)
+  Just double-click this file in Google Chrome to run.
+  Best used with a touchscreen + stylus (Pointer Events API), but also
+  works with mouse/finger.
+
+  Bilingual: English (en-US) + Hindi (hi-IN). Toggle at top-right.
+  Practice basic pre-writing strokes (straight / sleeping / slanting /
+  curved / circle) and capital letters A-Z.
+
+  Each practice item is defined as one or more "strokes" — a stroke is
+  just an array of [x,y] points in an abstract 100 x 140 coordinate
+  space (see geometry helpers below). The left panel animates a glowing
+  dot tracing the stroke(s) in order (showing direction); the right
+  panel shows the same dotted outline and lets the child draw over it
+  with a stylus/finger/mouse, then "Check" scores how much of the
+  dotted path was covered.
+  ════════════════════════════════════════════════════════════════════
+-->
+
+<style>
+  :root{
+    --pink:#ff5fa2; --purple:#a259ff; --blue:#3aa0ff; --green:#2ecc71;
+    --orange:#ff9f1c; --yellow:#ffd23f; --red:#ff5a5f; --teal:#21d4b4;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family:"Comic Sans MS","Comic Sans","Baloo 2","Chalkboard SE",
+                "Segoe UI",system-ui,sans-serif;
+    background:linear-gradient(135deg,#ffe6f2 0%,#e6f0ff 50%,#e8fff0 100%);
+    color:#33335a; overflow:hidden; user-select:none; -webkit-user-select:none;
+  }
+  .screen{ display:none; height:100vh; height:100dvh; padding:12px;
+           flex-direction:column; align-items:center; gap:10px; overflow:hidden; }
+  .screen.active{ display:flex; animation:pop .35s ease; }
+  @keyframes pop{ from{opacity:0; transform:scale(.94);} to{opacity:1; transform:scale(1);} }
+
+  h1{ font-size:clamp(24px,5.5vw,42px); margin:6px; color:var(--purple);
+      text-shadow:2px 2px 0 #fff; }
+  .subtitle{ font-size:clamp(16px,3vw,22px); color:#555; margin:0 0 4px; }
+
+  .topbar{ position:fixed; top:8px; left:0; right:0; display:flex;
+           justify-content:space-between; padding:0 12px; z-index:50; gap:8px; }
+  .pill{ font-size:16px; font-weight:bold; padding:10px 16px; border:none;
+         border-radius:40px; cursor:pointer; color:#fff; box-shadow:0 4px 0 rgba(0,0,0,.2);
+         min-height:44px; }
+  .pill:active{ transform:translateY(3px); box-shadow:0 1px 0 rgba(0,0,0,.2); }
+  #homeBtn{ background:var(--blue); }
+  #langBtn{ background:var(--orange); }
+
+  .btn{ border:none; border-radius:24px; color:#fff; cursor:pointer;
+        font-family:inherit; font-weight:bold; box-shadow:0 6px 0 rgba(0,0,0,.18);
+        transition:transform .08s; display:flex; align-items:center;
+        justify-content:center; gap:10px; }
+  .btn:active{ transform:translateY(4px); box-shadow:0 2px 0 rgba(0,0,0,.18); }
+  .btn-big{ font-size:clamp(18px,3.2vw,26px); padding:16px 22px; min-height:64px; }
+  .btn-sm{ font-size:clamp(14px,2.4vw,18px); padding:10px 16px; min-height:48px; }
+  .menu-btn{ width:min(92vw,560px); font-size:clamp(18px,4vw,28px);
+             padding:16px; min-height:78px; }
+
+  #screen-menu, #screen-letters, #screen-numbers{ justify-content:flex-start; padding-top:60px; overflow-y:auto; }
+  #screen-greet{ justify-content:center; gap:16px; }
+  #nameInput{ font-family:inherit; font-size:26px; text-align:center;
+    padding:14px 18px; border:4px dashed var(--purple); border-radius:20px;
+    width:min(85vw,420px); outline:none; }
+  .start{ background:var(--green); animation:wiggle 1.2s ease-in-out infinite; }
+  @keyframes wiggle{ 0%,100%{transform:rotate(-2deg) scale(1);} 50%{transform:rotate(2deg) scale(1.04);} }
+
+  /* ── Reward settings panel (on the menu) ── */
+  .reward-panel{ width:min(92vw,560px); background:rgba(255,255,255,.75); border-radius:22px;
+                 padding:18px 20px 22px; margin:18px 0 30px; box-shadow:0 6px 20px rgba(0,0,0,.08); }
+  .reward-panel h2{ font-size:clamp(18px,3.6vw,24px); color:var(--purple); margin:0 0 12px; text-align:center; }
+  .settings-row{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+                 gap:8px; margin-bottom:12px; font-size:clamp(14px,2.6vw,17px); }
+  .settings-row label{ flex:1 1 200px; }
+  .settings-row select{ font-family:inherit; font-size:16px; padding:8px 12px; border-radius:12px;
+                 border:2px solid var(--purple); background:#fff; color:#33335a; }
+  #pickVideoFolderBtn{ width:100%; margin-top:4px; }
+  #videoFolderStatus{ text-align:center; margin-top:10px; }
+
+  /* ── Reward video overlay ── */
+  .reward-overlay{ position:fixed; inset:0; background:#0a0a1a; z-index:200; display:none;
+                    flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+  .reward-overlay.show{ display:flex; }
+  .reward-message{ color:#fff; font-size:clamp(22px,5vw,38px); font-weight:bold; text-align:center;
+                    max-width:90vw; text-shadow:0 0 20px rgba(255,255,255,.3); animation:pop .4s ease; }
+  #rewardVideo{ display:none; max-width:96vw; max-height:96vh; border-radius:16px;
+                box-shadow:0 10px 50px rgba(0,0,0,.6); }
+
+  .letter-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr));
+                gap:10px; width:min(94vw,760px); }
+  .letter-btn{ font-size:26px; font-weight:bold; padding:14px 0; border:none;
+               border-radius:16px; background:#fff; color:var(--purple);
+               box-shadow:0 5px 0 rgba(0,0,0,.15); cursor:pointer; }
+  .letter-btn:active{ transform:translateY(3px); box-shadow:0 2px 0 rgba(0,0,0,.15); }
+
+  /* ── Practice screen ── */
+  #screen-practice{ padding-top:56px; justify-content:flex-start; }
+  #practiceTitle{ font-size:clamp(20px,4vw,32px); margin:2px 0; color:var(--purple); }
+  .practice-wrap{ display:flex; gap:14px; width:100%; max-width:1100px; flex:1 1 auto;
+                  min-height:0; }
+  .panel{ flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;
+          min-width:0; }
+  .panel-label{ font-size:clamp(14px,2.6vw,20px); font-weight:bold; }
+  .canvas-box{ width:100%; max-width:340px; aspect-ratio:5/7; background:#fff;
+               border-radius:20px; box-shadow:0 6px 24px rgba(0,0,0,.15); overflow:hidden;
+               position:relative; flex:1 1 auto; min-height:0; }
+  .canvas-box canvas{ width:100%; height:100%; display:block; touch-action:none; }
+  .panel-row{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  #feedbackMsg{ font-size:clamp(16px,3vw,22px); font-weight:bold; min-height:1.4em; }
+
+  @media (max-width:640px){
+    .practice-wrap{ flex-direction:column; align-items:center; }
+    .canvas-box{ max-width:min(70vw,300px); }
+  }
+
+  /* ── falling celebration confetti ── */
+  #confettiLayer{ position:fixed; inset:0; pointer-events:none; z-index:90; overflow:hidden; }
+  .confetti-piece{ position:absolute; top:-10vh; font-size:32px;
+                    animation:confettiFall linear forwards; }
+  @keyframes confettiFall{ to{ transform:translateY(120vh) rotate(360deg); opacity:.3; } }
+</style>
+
+<!-- ══════════ TOP BAR ══════════ -->
+<div class="topbar">
+  <button class="pill" id="homeBtn">🏠 <span data-i18n="menu">Menu</span></button>
+  <button class="pill" id="langBtn">🌐 हिंदी</button>
+</div>
+
+<!-- ══════════ GREETING SCREEN ══════════ -->
+<div class="screen active" id="screen-greet">
+  <h1>👋 <span data-i18n="welcome">Welcome!</span></h1>
+  <p class="subtitle" data-i18n="askName">What is your name?</p>
+  <input id="nameInput" maxlength="20" autocomplete="off" placeholder="..." />
+  <button class="btn btn-big start" id="greetBtn">🎈 <span data-i18n="hello">Hello!</span></button>
+</div>
+
+<!-- ══════════ MAIN MENU ══════════ -->
+<div class="screen" id="screen-menu">
+  <h1>✏️ <span data-i18n="appTitle">Writing Practice</span></h1>
+  <p class="subtitle" id="menuGreet"></p>
+  <p class="subtitle" data-i18n="chooseTitle">What do you want to practice?</p>
+  <button class="btn menu-btn" style="background:var(--pink)" data-stroke="straight">📏 <span data-i18n="straight">Straight Line</span></button>
+  <button class="btn menu-btn" style="background:var(--blue)" data-stroke="sleeping">💤 <span data-i18n="sleeping">Sleeping Line</span></button>
+  <button class="btn menu-btn" style="background:var(--green)" data-stroke="slant-fwd">📈 <span data-i18n="slantFwd">Slanting Line (Forward)</span></button>
+  <button class="btn menu-btn" style="background:var(--orange)" data-stroke="slant-bwd">📉 <span data-i18n="slantBwd">Slanting Line (Backward)</span></button>
+  <button class="btn menu-btn" style="background:var(--teal)" data-stroke="curve">🌈 <span data-i18n="curved">Curved Line</span></button>
+  <button class="btn menu-btn" style="background:var(--red)" data-stroke="circle">⚪ <span data-i18n="circle">Circle</span></button>
+  <button class="btn menu-btn" style="background:var(--purple)" id="goLetters">🔤 <span data-i18n="letters">Write Letters</span></button>
+  <button class="btn menu-btn" style="background:#e8590c" id="goNumbers">🔢 <span data-i18n="numbers">Write Numbers</span></button>
+
+  <div class="reward-panel">
+    <h2 data-i18n="rewardSettingsTitle">🎁 Reward Settings</h2>
+    <div class="settings-row">
+      <label for="rewardEverySelect" data-i18n="rewardEveryLabel">Give a reward after this many correct draws:</label>
+      <select id="rewardEverySelect">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="5">5</option>
+        <option value="7">7</option>
+        <option value="10">10</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <label for="rewardDurationSelect" data-i18n="rewardDurationLabel">Video length:</label>
+      <select id="rewardDurationSelect">
+        <option value="30">30 sec</option>
+        <option value="60">1 min</option>
+        <option value="90">90 sec</option>
+        <option value="120">2 min</option>
+        <option value="180">3 min</option>
+        <option value="300">5 min</option>
+      </select>
+    </div>
+    <button class="btn btn-sm" style="background:var(--teal)" id="pickVideoFolderBtn">🎬 <span data-i18n="pickVideoFolder">Choose Reward Videos</span></button>
+    <input type="file" id="videoFolderInput" webkitdirectory directory multiple hidden>
+    <div class="hint" id="videoFolderStatus"></div>
+  </div>
+</div>
+
+<!-- ══════════ REWARD VIDEO OVERLAY ══════════ -->
+<div class="reward-overlay" id="rewardOverlay">
+  <div class="reward-message" id="rewardMessage"></div>
+  <video id="rewardVideo" playsinline></video>
+</div>
+
+<!-- ══════════ LETTER PICKER ══════════ -->
+<div class="screen" id="screen-letters">
+  <h1 data-i18n="pickLetter">Pick a letter</h1>
+  <div class="letter-grid" id="letterGrid"></div>
+</div>
+
+<!-- ══════════ NUMBER PICKER ══════════ -->
+<div class="screen" id="screen-numbers">
+  <h1 data-i18n="pickNumber">Pick a number</h1>
+  <div class="letter-grid" id="numberGrid"></div>
+</div>
+
+<!-- ══════════ PRACTICE SCREEN (split: Watch | Your Turn) ══════════ -->
+<div class="screen" id="screen-practice">
+  <h1 id="practiceTitle">A</h1>
+  <div class="practice-wrap">
+    <div class="panel">
+      <div class="panel-label">👀 <span data-i18n="watch">Watch</span></div>
+      <div class="canvas-box"><canvas id="watchCanvas"></canvas></div>
+      <div class="panel-row">
+        <button class="btn btn-sm" style="background:var(--teal)" id="replayBtn">🔁 <span data-i18n="replay">Replay</span></button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-label">✏️ <span data-i18n="yourTurn">Your Turn</span></div>
+      <div class="canvas-box"><canvas id="drawCanvas"></canvas></div>
+      <div class="panel-row">
+        <button class="btn btn-sm" style="background:var(--blue)" id="undoBtn">↩️ <span data-i18n="undo">Undo</span></button>
+        <button class="btn btn-sm" style="background:var(--orange)" id="clearBtn">🧹 <span data-i18n="clear">Clear</span></button>
+        <button class="btn btn-sm" style="background:var(--green)" id="checkBtn">✅ <span data-i18n="check">Check</span></button>
+      </div>
+    </div>
+  </div>
+  <div id="feedbackMsg"></div>
+  <div class="panel-row">
+    <button class="btn btn-big" style="background:var(--purple)" id="prevBtn">⬅️ <span data-i18n="prev">Previous</span></button>
+    <button class="btn btn-big" style="background:var(--pink)" id="nextBtn">➡️ <span data-i18n="next">Next</span></button>
+  </div>
+</div>
+
+<div id="confettiLayer"></div>
+
+<script>
+/* ============================================================
+   1. LANGUAGE / TRANSLATIONS
+   ============================================================ */
+let LANG = 'en';
+const VOICE_LANG = { en:'en-US', hi:'hi-IN' };
+
+const I18N = {
+  menu:        { en:'Menu',                          hi:'मेनू' },
+  welcome:     { en:'Welcome!',                       hi:'स्वागत है!' },
+  askName:     { en:'What is your name?',             hi:'तुम्हारा नाम क्या है?' },
+  hello:       { en:'Hello!',                         hi:'नमस्ते!' },
+  appTitle:    { en:'Writing Practice',               hi:'लेखन अभ्यास' },
+  chooseTitle: { en:'What do you want to practice?',  hi:'तुम क्या अभ्यास करना चाहते हो?' },
+  straight:    { en:'Straight Line',                  hi:'सीधी रेखा' },
+  sleeping:    { en:'Sleeping Line',                  hi:'सोई हुई रेखा' },
+  slantFwd:    { en:'Slanting Line (Forward)',        hi:'तिरछी रेखा (आगे)' },
+  slantBwd:    { en:'Slanting Line (Backward)',       hi:'तिरछी रेखा (पीछे)' },
+  curved:      { en:'Curved Line',                    hi:'घुमावदार रेखा' },
+  circle:      { en:'Circle',                         hi:'गोला' },
+  letters:     { en:'Write Letters',                  hi:'अक्षर लिखो' },
+  pickLetter:  { en:'Pick a letter',                  hi:'एक अक्षर चुनो' },
+  numbers:     { en:'Write Numbers',                  hi:'गिनती लिखो' },
+  pickNumber:  { en:'Pick a number',                  hi:'एक संख्या चुनो' },
+  rewardSettingsTitle:{ en:'🎁 Reward Settings',       hi:'🎁 इनाम सेटिंग्स' },
+  rewardEveryLabel:{ en:'Give a reward after this many correct draws:',
+                      hi:'इतनी सही ड्राइंग के बाद इनाम दो:' },
+  rewardDurationLabel:{ en:'Video length:',            hi:'वीडियो की लंबाई:' },
+  pickVideoFolder:{ en:'Choose Reward Videos',         hi:'इनाम वीडियो चुनो' },
+  noVideosChosen:{ en:'No videos chosen yet.',         hi:'अभी तक कोई वीडियो नहीं चुना।' },
+  noVideosFound:{ en:'No videos found in that folder.', hi:'उस फ़ोल्डर में कोई वीडियो नहीं मिला।' },
+  watch:       { en:'Watch',                          hi:'देखो' },
+  yourTurn:    { en:'Your Turn',                      hi:'अब तुम्हारी बारी' },
+  replay:      { en:'Replay',                         hi:'फिर दिखाओ' },
+  undo:        { en:'Undo',                           hi:'पूर्ववत' },
+  clear:       { en:'Clear',                          hi:'मिटाओ' },
+  check:       { en:'Check',                          hi:'जाँचो' },
+  prev:        { en:'Previous',                       hi:'पिछला' },
+  next:        { en:'Next',                           hi:'आगे' },
+};
+
+const SAY = {
+  greet:      (n)=> LANG==='en' ? `Hello ${n}! Let's practice writing!`
+                                 : `नमस्ते ${n}! चलो लिखना सीखें!`,
+  yourTurn:   ()=> LANG==='en' ? `Now you try! Use your stylus or finger.`
+                               : `अब तुम कोशिश करो! स्टाइलस या उंगली का उपयोग करो।`,
+  great:      ()=> LANG==='en' ? `Wonderful! Great job!` : `शाबाश! बहुत बढ़िया!`,
+  tryAgain:   ()=> LANG==='en' ? `Good try! Follow the dots and try again.`
+                               : `अच्छी कोशिश! बिंदुओं का पालन करो और फिर से कोशिश करो।`,
+  drawFirst:  ()=> LANG==='en' ? `Draw over the dots first!` : `पहले बिंदुओं पर बनाओ!`,
+  keepGoing:  ()=> LANG==='en' ? `Keep going! Follow the glowing dot.` : `चलते रहो! चमकते बिंदु का पालन करो।`,
+  rewardIntro:(n)=> LANG==='en' ? `Hi ${n}, you are amazing and you are doing great. Enjoy your video!`
+                                : `नमस्ते ${n}, तुम कमाल हो और बहुत अच्छा कर रहे हो। अपना वीडियो देखो!`,
+  rewardOutro:()=> LANG==='en' ? `Okay, let's focus on study again!` : `ठीक है, चलो फिर से पढ़ाई पर ध्यान दें!`,
+  letterIntro:(L,word)=> LANG==='en' ? `Let's write the letter ${L}. ${L} for ${word}!`
+                                     : `चलो अक्षर ${L} लिखते हैं। ${L} से ${word}!`,
+  numberIntro:(N,word)=> LANG==='en' ? `Let's write the number ${N}. It's ${word}!`
+                                     : `चलो संख्या ${N} लिखते हैं। यह ${word} है!`,
+};
+
+function t(key){ return (I18N[key] && I18N[key][LANG]) || key; }
+function applyI18n(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.getElementById('langBtn').textContent = LANG==='en' ? '🌐 हिंदी' : '🌐 English';
+  document.documentElement.lang = VOICE_LANG[LANG];
+}
+
+/* ============================================================
+   2. GEOMETRY HELPERS
+      All strokes live in an abstract 100 (wide) x 140 (tall) space.
+   ============================================================ */
+const VIEW_W = 100, VIEW_H = 140;
+
+function line(x1,y1,x2,y2){ return [[x1,y1],[x2,y2]]; }
+function arc(cx,cy,rx,ry,startDeg,endDeg,steps){
+  steps = steps || 20;
+  const out = [];
+  for(let i=0;i<=steps;i++){
+    const deg = startDeg + (endDeg-startDeg)*(i/steps);
+    const rad = deg*Math.PI/180;
+    out.push([cx+rx*Math.cos(rad), cy+ry*Math.sin(rad)]);
+  }
+  return out;
+}
+function pts(...items){
+  const out=[];
+  items.forEach(it=>{
+    if(Array.isArray(it) && Array.isArray(it[0])) out.push(...it);
+    else out.push(it);
+  });
+  return out;
+}
+// Smooth a sparse hand-authored polyline into a flowing curve (Catmull-Rom
+// spline through the same key points). Short strokes (<4 points) — mostly
+// straight lines and intentional sharp corners like in K, M, Z — pass through
+// untouched; arcs are already smooth circles so re-splining them is a no-op.
+function catmullRom(points, samplesPerSeg){
+  if(points.length < 4) return points;
+  samplesPerSeg = samplesPerSeg || 8;
+  const out = [];
+  const n = points.length;
+  for(let i=0;i<n-1;i++){
+    const p0 = points[i-1] || points[i];
+    const p1 = points[i];
+    const p2 = points[i+1];
+    const p3 = points[i+2] || p2;
+    for(let s=0;s<samplesPerSeg;s++){
+      const t = s/samplesPerSeg, t2=t*t, t3=t2*t;
+      const x = 0.5*((2*p1[0]) + (p2[0]-p0[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (3*p1[0]-p0[0]-3*p2[0]+p3[0])*t3);
+      const y = 0.5*((2*p1[1]) + (p2[1]-p0[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (3*p1[1]-p0[1]-3*p2[1]+p3[1])*t3);
+      out.push([x,y]);
+    }
+  }
+  out.push(points[n-1]);
+  return out;
+}
+function smoothStrokes(strokes){ return strokes.map(s=> catmullRom(s, 8)); }
+function polyLength(p){
+  let d=0;
+  for(let i=1;i<p.length;i++) d += Math.hypot(p[i][0]-p[i-1][0], p[i][1]-p[i-1][1]);
+  return d;
+}
+// evenly re-space n points along a polyline (by arc length)
+function resample(p, n){
+  if(p.length<2) return [p[0]||[0,0]];
+  n = Math.max(2, n);
+  const step = polyLength(p) / (n-1);
+  const out = [p[0]];
+  let px=p[0][0], py=p[0][1], nextIdx=1;
+  for(let k=1;k<n;k++){
+    let need = step;
+    while(need > 1e-9 && nextIdx < p.length){
+      const B = p[nextIdx];
+      const segRemaining = Math.hypot(B[0]-px, B[1]-py);
+      if(segRemaining <= need + 1e-9){
+        need -= segRemaining; px=B[0]; py=B[1]; nextIdx++;
+      } else {
+        const ratio = need/segRemaining;
+        px = px + (B[0]-px)*ratio; py = py + (B[1]-py)*ratio;
+        need = 0;
+      }
+    }
+    out.push([px,py]);
+  }
+  return out;
+}
+
+/* ============================================================
+   3. DATA — basic strokes + capital letters A-Z
+   ============================================================ */
+const STROKES = [
+  {key:'straight', en:'Straight Line', hi:'सीधी रेखा', icon:'📏',
+    prompt:{en:'Draw a straight line from top to bottom.', hi:'ऊपर से नीचे एक सीधी रेखा बनाओ।'},
+    strokes:smoothStrokes([ line(50,15,50,125) ])},
+  {key:'sleeping', en:'Sleeping Line', hi:'सोई हुई रेखा', icon:'💤',
+    prompt:{en:'Draw a sleeping line from left to right.', hi:'बाएँ से दाएँ एक सोई हुई रेखा बनाओ।'},
+    strokes:smoothStrokes([ line(12,70,88,70) ])},
+  {key:'slant-fwd', en:'Slanting Line (Forward)', hi:'तिरछी रेखा (आगे)', icon:'📈',
+    prompt:{en:'Draw a slanting line going up.', hi:'ऊपर जाती हुई तिरछी रेखा बनाओ।'},
+    strokes:smoothStrokes([ line(18,125,82,15) ])},
+  {key:'slant-bwd', en:'Slanting Line (Backward)', hi:'तिरछी रेखा (पीछे)', icon:'📉',
+    prompt:{en:'Draw a slanting line going down.', hi:'नीचे जाती हुई तिरछी रेखा बनाओ।'},
+    strokes:smoothStrokes([ line(18,15,82,125) ])},
+  {key:'curve', en:'Curved Line', hi:'घुमावदार रेखा', icon:'🌈',
+    prompt:{en:'Draw a curved line, like a rainbow.', hi:'इंद्रधनुष जैसी एक घुमावदार रेखा बनाओ।'},
+    strokes:smoothStrokes([ arc(50,90,38,65,180,360,24) ])},
+  {key:'circle', en:'Circle', hi:'गोला', icon:'⚪',
+    prompt:{en:'Draw a round circle.', hi:'एक गोल गोला बनाओ।'},
+    strokes:smoothStrokes([ arc(50,70,35,50,-90,270,32) ])},
+];
+
+const LETTER_WORDS = {
+  A:['Apple','सेब'], B:['Ball','गेंद'], C:['Cat','बिल्ली'], D:['Dog','कुत्ता'],
+  E:['Elephant','हाथी'], F:['Fish','मछली'], G:['Grapes','अंगूर'], H:['Hat','टोपी'],
+  I:['Ice cream','आइसक्रीम'], J:['Jug','जग'], K:['Kite','पतंग'], L:['Lion','शेर'],
+  M:['Monkey','बंदर'], N:['Nest','घोंसला'], O:['Orange','संतरा'], P:['Parrot','तोता'],
+  Q:['Queen','रानी'], R:['Rabbit','खरगोश'], S:['Sun','सूरज'], T:['Tiger','बाघ'],
+  U:['Umbrella','छाता'], V:['Van','वैन'], W:['Watch','घड़ी'], X:['Xylophone','जलतरंग'],
+  Y:['Yak','याक'], Z:['Zebra','ज़ेबरा'],
+};
+
+// Simple block-print capital letters, each built from 1-3 strokes.
+const LETTER_SHAPES = {
+  A:[ line(50,20,20,120), line(50,20,80,120), line(32,80,68,80) ],
+  B:[ line(25,20,25,120), arc(25,45,28,25,-90,90,16), arc(25,95,28,25,-90,90,16) ],
+  C:[ arc(58,70,26,50,40,320,22) ],
+  D:[ line(25,20,25,120), arc(25,70,35,50,-90,90,26) ],
+  E:[ line(25,20,25,120), line(25,20,75,20), line(25,70,65,70), line(25,120,75,120) ],
+  F:[ line(25,20,25,120), line(25,20,75,20), line(25,70,65,70) ],
+  G:[ arc(58,70,26,50,35,325,22), line(80,72,54,72) ],
+  H:[ line(25,20,25,120), line(75,20,75,120), line(25,70,75,70) ],
+  I:[ line(35,20,65,20), line(50,20,50,120), line(35,120,65,120) ],
+  J:[ line(60,20,60,95), arc(42,95,18,22,0,140,16) ],
+  K:[ line(25,20,25,120), line(75,20,25,70), line(25,70,75,120) ],
+  L:[ line(25,20,25,120), line(25,120,75,120) ],
+  M:[ line(20,120,20,20), line(20,20,50,80), line(50,80,80,20), line(80,20,80,120) ],
+  N:[ line(25,120,25,20), line(25,20,75,120), line(75,120,75,20) ],
+  O:[ arc(50,70,30,50,-90,270,32) ],
+  P:[ line(25,20,25,120), arc(25,45,28,25,-90,90,16) ],
+  Q:[ arc(50,70,30,50,-90,270,32), line(58,100,80,125) ],
+  R:[ line(25,20,25,120), arc(25,45,28,25,-90,90,16), line(25,70,75,120) ],
+  S:[ [[75,32],[62,20],[42,20],[27,30],[27,47],[42,58],[58,62],[70,70],[73,88],[70,105],[52,116],[32,113],[24,100]] ],
+  T:[ line(20,20,80,20), line(50,20,50,120) ],
+  U:[ pts([25,20], arc(50,95,25,25,180,0,16), [75,20]) ],
+  V:[ line(20,20,50,120), line(50,120,80,20) ],
+  W:[ line(15,20,35,120), line(35,120,50,60), line(50,60,65,120), line(65,120,85,20) ],
+  X:[ line(20,20,80,120), line(80,20,20,120) ],
+  Y:[ line(20,20,50,70), line(80,20,50,70), line(50,70,50,120) ],
+  Z:[ line(20,20,80,20), line(80,20,20,120), line(20,120,80,120) ],
+};
+
+Object.keys(LETTER_SHAPES).forEach(L=>{ LETTER_SHAPES[L] = smoothStrokes(LETTER_SHAPES[L]); });
+const LETTERS = Object.keys(LETTER_SHAPES).map(L=>({
+  key:'letter-'+L, L, en:LETTER_WORDS[L][0], hi:LETTER_WORDS[L][1], strokes:LETTER_SHAPES[L],
+}));
+
+// Digit glyphs (0-9), hand-tuned with real curves — each authored in its own
+// small "unit cell" (x:0-60, y:0-100) then scaled/positioned by placeDigit().
+const DIGIT_SHAPES = {
+  '0':[ arc(30,50,22,48,-90,270,28) ],
+  '1':[ pts([16,20],[30,0],[30,100]), line(15,100,45,100) ],
+  '2':[ [[12,26],[13,14],[24,2],[36,2],[46,10],[46,26],[36,42],[9,80],[6,94]], line(6,96,52,96) ],
+  '3':[ [[10,10],[24,0],[40,4],[48,16],[48,30],[38,42],[26,46]],
+        [[26,46],[40,50],[50,64],[50,80],[40,96],[24,100],[8,90]] ],
+  '4':[ line(38,0,10,66), line(10,66,50,66), line(38,0,38,100) ],
+  '5':[ [[46,2],[12,2],[12,40]], [[12,40],[28,34],[42,40],[50,54],[50,76],[40,94],[22,98],[8,88]] ],
+  '6':[ [[44,4],[26,2],[13,16],[7,38],[7,64],[12,80]], arc(29,80,20,20,-90,270,20) ],
+  '7':[ line(10,4,50,4), line(50,4,20,100) ],
+  '8':[ arc(30,28,17,26,-90,270,18), arc(30,74,20,26,-90,270,20) ],
+  '9':[ arc(31,24,20,22,-90,270,20), [[49,30],[49,58],[40,82],[22,98]] ],
+};
+Object.keys(DIGIT_SHAPES).forEach(d=>{ DIGIT_SHAPES[d] = smoothStrokes(DIGIT_SHAPES[d]); });
+// map a digit's unit-cell points (0-60 wide, 0-100 tall) into a target box
+function placeDigit(strokes, x0, width, y0, height){
+  return strokes.map(s=> s.map(p=> [ x0 + (p[0]/60)*width, y0 + (p[1]/100)*height ]));
+}
+function numberStrokes(n){
+  if(n < 10) return placeDigit(DIGIT_SHAPES[String(n)], 20, 60, 20, 100);
+  const tens = String(Math.floor(n/10)), ones = String(n%10);
+  return [
+    ...placeDigit(DIGIT_SHAPES[tens], 6, 38, 20, 100),
+    ...placeDigit(DIGIT_SHAPES[ones], 56, 38, 20, 100),
+  ];
+}
+const NUMBER_WORDS = {
+  1:['One','एक'], 2:['Two','दो'], 3:['Three','तीन'], 4:['Four','चार'], 5:['Five','पांच'],
+  6:['Six','छह'], 7:['Seven','सात'], 8:['Eight','आठ'], 9:['Nine','नौ'], 10:['Ten','दस'],
+  11:['Eleven','ग्यारह'], 12:['Twelve','बारह'], 13:['Thirteen','तेरह'], 14:['Fourteen','चौदह'],
+  15:['Fifteen','पंद्रह'], 16:['Sixteen','सोलह'], 17:['Seventeen','सत्रह'], 18:['Eighteen','अठारह'],
+  19:['Nineteen','उन्नीस'], 20:['Twenty','बीस'],
+};
+const NUMBERS = [];
+for(let n=1; n<=20; n++){
+  NUMBERS.push({ key:'num-'+n, N:n, en:NUMBER_WORDS[n][0], hi:NUMBER_WORDS[n][1], strokes:numberStrokes(n) });
+}
+
+/* ============================================================
+   4. VOICE OUT (SpeechSynthesis)
+   ============================================================ */
+if('speechSynthesis' in window){ window.speechSynthesis.getVoices(); }
+function pickVoice(langCode){
+  const vs = window.speechSynthesis.getVoices();
+  return vs.find(v=>v.lang===langCode) || vs.find(v=>v.lang && v.lang.startsWith(langCode.split('-')[0])) || null;
+}
+function speak(text, cb){
+  if(!('speechSynthesis' in window)){ if(cb) cb(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = VOICE_LANG[LANG];
+  const v = pickVoice(u.lang); if(v) u.voice = v;
+  u.rate = 0.9; u.pitch = 1.15;
+  if(cb) u.onend = cb;
+  window.speechSynthesis.speak(u);
+}
+
+/* ============================================================
+   5. SOUNDS (Web Audio API — no files needed)
+   ============================================================ */
+let audioCtx = null;
+function ac(){ audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)(); return audioCtx; }
+function tone(freq, start, dur, type='sine', vol=0.25){
+  const c = ac();
+  const o = c.createOscillator(), g = c.createGain();
+  o.type=type; o.frequency.value=freq; o.connect(g); g.connect(c.destination);
+  const t0 = c.currentTime + start;
+  g.gain.setValueAtTime(0, t0);
+  g.gain.linearRampToValueAtTime(vol, t0+0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, t0+dur);
+  o.start(t0); o.stop(t0+dur+0.02);
+}
+function rewardSound(){ [523,659,784,1047].forEach((f,i)=> tone(f, i*0.12, 0.25, 'triangle', 0.3)); }
+function buzzSound(){ tone(300,0,0.15,'sine',0.2); tone(240,0.16,0.2,'sine',0.2); }
+
+function spawnConfetti(){
+  const layer = document.getElementById('confettiLayer');
+  const items = ['⭐','🎉','✨','🌟','🎈'];
+  for(let i=0;i<14;i++){
+    const s = document.createElement('div');
+    s.className = 'confetti-piece';
+    s.textContent = items[Math.floor(Math.random()*items.length)];
+    s.style.left = (Math.random()*94)+'vw';
+    s.style.animationDuration = (1.1 + Math.random()*0.9)+'s';
+    s.style.animationDelay = (Math.random()*0.3)+'s';
+    layer.appendChild(s);
+    setTimeout(()=> s.remove(), 2400);
+  }
+}
+
+/* ============================================================
+   6. NAVIGATION
+   ============================================================ */
+let navHistory = ['screen-greet'];
+function show(id, addToHistory=true){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(addToHistory && navHistory[navHistory.length-1]!==id) navHistory.push(id);
+  window.speechSynthesis && window.speechSynthesis.cancel();
+  if(id!=='screen-practice'){ stopWatchAnim(); stopGlow(); }
+  cancelReward();
+}
+document.getElementById('homeBtn').onclick = ()=>{ ac(); show('screen-menu'); };
+
+/* ============================================================
+   7. CANVAS / GUIDE RENDERING
+   ============================================================ */
+function fitCanvas(canvas){
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  const w = Math.max(1, Math.round(cssW*dpr)), h = Math.max(1, Math.round(cssH*dpr));
+  if(canvas.width!==w || canvas.height!==h){ canvas.width=w; canvas.height=h; }
+}
+function computeTransform(canvas){
+  const pad = canvas.width*0.06;
+  const availW = canvas.width - pad*2, availH = canvas.height - pad*2;
+  const scale = Math.min(availW/VIEW_W, availH/VIEW_H);
+  return { scale, offX:(canvas.width - VIEW_W*scale)/2, offY:(canvas.height - VIEW_H*scale)/2 };
+}
+function toCanvas(tr, p){ return [tr.offX + p[0]*tr.scale, tr.offY + p[1]*tr.scale]; }
+
+function drawDottedStroke(ctx, tr, strokePts, color){
+  const len = polyLength(strokePts);
+  const count = Math.max(2, Math.round(len/7)+1);
+  resample(strokePts, count).forEach(p=>{
+    const c = toCanvas(tr, p);
+    ctx.beginPath(); ctx.fillStyle = color;
+    ctx.arc(c[0], c[1], Math.max(2, tr.scale*1.5), 0, Math.PI*2); ctx.fill();
+  });
+}
+function drawGuide(canvas, ctx, item, color){
+  fitCanvas(canvas);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  const tr = computeTransform(canvas);
+  item.strokes.forEach(s=> drawDottedStroke(ctx, tr, s, color));
+  return tr;
+}
+function drawSolidStroke(ctx, tr, points, color, width){
+  if(points.length<2) return;
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.lineCap='round'; ctx.lineJoin='round';
+  ctx.beginPath();
+  const c0 = toCanvas(tr, points[0]); ctx.moveTo(c0[0], c0[1]);
+  for(let i=1;i<points.length;i++){ const c = toCanvas(tr, points[i]); ctx.lineTo(c[0], c[1]); }
+  ctx.stroke();
+}
+
+/* ============================================================
+   8. WATCH PANEL — animated tracing demo
+   ============================================================ */
+const watchCanvas = document.getElementById('watchCanvas');
+const watchCtx = watchCanvas.getContext('2d');
+let watchState = { raf:null, timeout:null, tr:null, item:null };
+
+function stopWatchAnim(){
+  if(watchState.raf) cancelAnimationFrame(watchState.raf);
+  if(watchState.timeout) clearTimeout(watchState.timeout);
+  watchState.raf = null; watchState.timeout = null;
+}
+function startWatchAnim(item){
+  stopWatchAnim();
+  watchState.item = item;
+  watchState.tr = drawGuide(watchCanvas, watchCtx, item, '#d8d0f5');
+  runStroke(0);
+
+  function runStroke(strokeIdx){
+    if(strokeIdx >= item.strokes.length){
+      watchState.timeout = setTimeout(()=> runStroke(0), 900);
+      drawGuide(watchCanvas, watchCtx, item, '#d8d0f5');
+      return;
+    }
+    const strokePts = item.strokes[strokeIdx];
+    const len = polyLength(strokePts);
+    const duration = Math.min(1800, Math.max(650, len*7));
+    const dense = resample(strokePts, 90);
+    const start = performance.now();
+
+    function frame(now){
+      const p = Math.min(1, (now-start)/duration);
+      const idx = Math.max(0, Math.min(dense.length-1, Math.floor(p*(dense.length-1))));
+      if(!dense[idx]) return;
+      const tr = drawGuide(watchCanvas, watchCtx, item, '#d8d0f5');
+      for(let s=0;s<strokeIdx;s++) drawSolidStroke(watchCtx, tr, item.strokes[s], '#a259ff', Math.max(3,tr.scale*1.8));
+      drawSolidStroke(watchCtx, tr, dense.slice(0, idx+1), '#ff5fa2', Math.max(3,tr.scale*1.8));
+      const tip = toCanvas(tr, dense[idx]);
+      watchCtx.beginPath(); watchCtx.fillStyle='#ffd23f'; watchCtx.strokeStyle='#e8590c'; watchCtx.lineWidth=2;
+      watchCtx.arc(tip[0], tip[1], Math.max(5,tr.scale*2.6), 0, Math.PI*2); watchCtx.fill(); watchCtx.stroke();
+      if(p<1) watchState.raf = requestAnimationFrame(frame);
+      else watchState.timeout = setTimeout(()=> runStroke(strokeIdx+1), 260);
+    }
+    watchState.raf = requestAnimationFrame(frame);
+  }
+}
+document.getElementById('replayBtn').onclick = ()=>{ ac(); startWatchAnim(currentItem); };
+
+/* ============================================================
+   9. DRAW PANEL — guided connect-the-dots tracing
+      The next dot to touch glows (animated pulse). Ink is only drawn
+      when the pointer actually connects that dot, in the right order —
+      anything off-path or out of order leaves no mark at all.
+   ============================================================ */
+const drawCanvas = document.getElementById('drawCanvas');
+const drawCtx = drawCanvas.getContext('2d');
+let drawTr = null;
+const TOL_ADVANCE = 8; // how close ink must land to the next dot to confirm it
+let targetStrokes = [];   // array of dot-arrays, one per guide stroke
+let strokeCursor = 0;     // which stroke is currently being traced
+let dotCursor = 0;        // how many dots of that stroke are confirmed so far
+let activePointerId = null;
+let completed = false;
+let glowRaf = null;
+
+function buildTargetStrokes(item){
+  return item.strokes.map(s=> resample(s, Math.max(2, Math.round(polyLength(s)/7)+1)));
+}
+function dist(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
+function nextDot(){ return strokeCursor<targetStrokes.length ? targetStrokes[strokeCursor][dotCursor] : null; }
+
+function abstractFromEvent(evt){
+  const rect = drawCanvas.getBoundingClientRect();
+  const scaleX = drawCanvas.width/rect.width, scaleY = drawCanvas.height/rect.height;
+  const px = (evt.clientX-rect.left)*scaleX, py = (evt.clientY-rect.top)*scaleY;
+  return [ (px-drawTr.offX)/drawTr.scale, (py-drawTr.offY)/drawTr.scale ];
+}
+// advance through as many consecutive in-order dots as this point reaches
+function tryAdvance(pt){
+  while(strokeCursor < targetStrokes.length){
+    const dots = targetStrokes[strokeCursor];
+    if(dotCursor >= dots.length){ strokeCursor++; dotCursor = 0; continue; }
+    if(dist(pt, dots[dotCursor]) <= TOL_ADVANCE){ dotCursor++; continue; }
+    break;
+  }
+  if(strokeCursor >= targetStrokes.length) onFullyTraced();
+}
+function redrawUserCanvas(now){
+  drawTr = drawGuide(drawCanvas, drawCtx, currentItem, '#e3d6ff');
+  const width = Math.max(4, drawTr.scale*2.2);
+  targetStrokes.forEach((dots,i)=>{
+    const confirmedN = i<strokeCursor ? dots.length : (i===strokeCursor ? dotCursor : 0);
+    if(confirmedN>=2) drawSolidStroke(drawCtx, drawTr, dots.slice(0,confirmedN), '#a259ff', width);
+  });
+  const dot = nextDot();
+  if(dot){
+    const t = (now!=null ? now : performance.now())/220;
+    const pulse = 0.5 + 0.5*Math.sin(t);
+    const baseR = Math.max(6, drawTr.scale*2.2);
+    const c = toCanvas(drawTr, dot);
+    drawCtx.beginPath();
+    drawCtx.fillStyle = `rgba(255,178,36,${0.22+0.28*pulse})`;
+    drawCtx.arc(c[0], c[1], baseR*(1.6+0.5*pulse), 0, Math.PI*2); drawCtx.fill();
+    drawCtx.beginPath();
+    drawCtx.fillStyle='#ffd23f'; drawCtx.strokeStyle='#e8590c'; drawCtx.lineWidth=2;
+    drawCtx.arc(c[0], c[1], baseR, 0, Math.PI*2);
+    drawCtx.fill(); drawCtx.stroke();
+  }
+}
+function stopGlow(){ if(glowRaf) cancelAnimationFrame(glowRaf); glowRaf=null; }
+function startGlow(){
+  stopGlow();
+  function frame(now){
+    redrawUserCanvas(now);
+    if(!completed) glowRaf = requestAnimationFrame(frame);
+  }
+  glowRaf = requestAnimationFrame(frame);
+}
+drawCanvas.addEventListener('contextmenu', e=> e.preventDefault());
+drawCanvas.addEventListener('pointerdown', e=>{
+  if(activePointerId!==null || completed) return;
+  ac(); activePointerId = e.pointerId;
+  try{ drawCanvas.setPointerCapture(e.pointerId); }catch(err){}
+  tryAdvance(abstractFromEvent(e));
+  e.preventDefault();
+});
+drawCanvas.addEventListener('pointermove', e=>{
+  if(e.pointerId!==activePointerId) return;
+  tryAdvance(abstractFromEvent(e));
+  e.preventDefault();
+});
+function endStroke(e){
+  if(e.pointerId!==activePointerId) return;
+  activePointerId = null;
+}
+drawCanvas.addEventListener('pointerup', endStroke);
+drawCanvas.addEventListener('pointercancel', endStroke);
+drawCanvas.addEventListener('pointerleave', e=>{ if(e.pointerId===activePointerId) endStroke(e); });
+
+document.getElementById('undoBtn').onclick = ()=>{
+  if(dotCursor>0) dotCursor = 0;
+  else if(strokeCursor>0){ strokeCursor--; dotCursor = 0; }
+  completed = false;
+  startGlow();
+};
+document.getElementById('clearBtn').onclick = ()=>{
+  strokeCursor = 0; dotCursor = 0; completed = false;
+  startGlow();
+};
+
+/* ============================================================
+   10. COMPLETION + HINT
+   ============================================================ */
+const feedbackEl = document.getElementById('feedbackMsg');
+let advanceTimer = null;
+
+function onFullyTraced(){
+  if(completed) return;
+  completed = true;
+  feedbackEl.style.color = 'var(--green)';
+  feedbackEl.textContent = '🎉 ' + SAY.great();
+  rewardSound(); spawnConfetti();
+  speak(SAY.great());
+  clearTimeout(advanceTimer);
+  correctStreak++;
+  if(correctStreak >= rewardConfig.every){
+    correctStreak = 0;
+    advanceTimer = setTimeout(()=> showVideoReward(nextItem), 1400);
+  } else {
+    advanceTimer = setTimeout(nextItem, 2000);
+  }
+}
+document.getElementById('checkBtn').onclick = ()=>{
+  if(completed) return;
+  if(strokeCursor===0 && dotCursor===0){
+    feedbackEl.style.color = 'var(--purple)';
+    feedbackEl.textContent = '✏️ ' + SAY.drawFirst();
+    speak(SAY.drawFirst());
+  } else {
+    feedbackEl.style.color = 'var(--orange)';
+    feedbackEl.textContent = '👍 ' + SAY.keepGoing();
+    speak(SAY.keepGoing());
+  }
+};
+
+/* ============================================================
+   11. PRACTICE FLOW / NAVIGATION BETWEEN ITEMS
+   ============================================================ */
+let currentCollection = STROKES;
+let currentIndex = 0;
+let currentItem = STROKES[0];
+
+function updatePracticeHeader(){
+  const title = document.getElementById('practiceTitle');
+  if(currentItem.L) title.textContent = `🔤 ${currentItem.L} — ${currentItem[LANG]}`;
+  else if(currentItem.N!=null) title.textContent = `🔢 ${currentItem.N} — ${currentItem[LANG]}`;
+  else title.textContent = `${currentItem.icon||''} ${currentItem[LANG]}`;
+}
+function speakPrompt(){
+  if(currentItem.L){
+    speak(SAY.letterIntro(currentItem.L, currentItem[LANG]), ()=> speak(SAY.yourTurn()));
+  } else if(currentItem.N!=null){
+    speak(SAY.numberIntro(currentItem.N, currentItem[LANG]), ()=> speak(SAY.yourTurn()));
+  } else {
+    speak(currentItem.prompt[LANG], ()=> speak(SAY.yourTurn()));
+  }
+}
+function openPractice(collection, index){
+  clearTimeout(advanceTimer);
+  stopWatchAnim();
+  currentCollection = collection;
+  currentIndex = index;
+  currentItem = collection[index];
+  targetStrokes = buildTargetStrokes(currentItem);
+  strokeCursor = 0; dotCursor = 0; completed = false;
+  activePointerId = null;
+  feedbackEl.textContent = '';
+  show('screen-practice');
+  updatePracticeHeader();
+  // layout settles before measuring canvas size
+  requestAnimationFrame(()=>{
+    startGlow();
+    startWatchAnim(currentItem);
+  });
+  speakPrompt();
+}
+function nextItem(){ openPractice(currentCollection, (currentIndex+1)%currentCollection.length); }
+function prevItem(){ openPractice(currentCollection, (currentIndex-1+currentCollection.length)%currentCollection.length); }
+document.getElementById('nextBtn').onclick = ()=>{ ac(); nextItem(); };
+document.getElementById('prevBtn').onclick = ()=>{ ac(); prevItem(); };
+
+/* ============================================================
+   12. MENU WIRING
+   ============================================================ */
+document.querySelectorAll('[data-stroke]').forEach(b=>{
+  b.onclick = ()=>{
+    ac();
+    const idx = STROKES.findIndex(s=>s.key===b.getAttribute('data-stroke'));
+    openPractice(STROKES, idx);
+  };
+});
+function buildLetterGrid(){
+  const grid = document.getElementById('letterGrid');
+  grid.innerHTML = '';
+  LETTERS.forEach((item, i)=>{
+    const b = document.createElement('button');
+    b.className = 'letter-btn';
+    b.textContent = item.L;
+    b.onclick = ()=>{ ac(); openPractice(LETTERS, i); };
+    grid.appendChild(b);
+  });
+}
+document.getElementById('goLetters').onclick = ()=>{ ac(); buildLetterGrid(); show('screen-letters'); };
+function buildNumberGrid(){
+  const grid = document.getElementById('numberGrid');
+  grid.innerHTML = '';
+  NUMBERS.forEach((item, i)=>{
+    const b = document.createElement('button');
+    b.className = 'letter-btn';
+    b.textContent = item.N;
+    b.onclick = ()=>{ ac(); openPractice(NUMBERS, i); };
+    grid.appendChild(b);
+  });
+}
+document.getElementById('goNumbers').onclick = ()=>{ ac(); buildNumberGrid(); show('screen-numbers'); };
+
+/* ============================================================
+   12b. GREETING
+   ============================================================ */
+let childName = '';
+const nameInput = document.getElementById('nameInput');
+function updateMenuGreet(){
+  document.getElementById('menuGreet').textContent =
+    (LANG==='en') ? `Hi ${childName}! 😊` : `नमस्ते ${childName}! 😊`;
+}
+document.getElementById('greetBtn').onclick = ()=>{
+  ac();
+  childName = (nameInput.value || (LANG==='en'?'friend':'दोस्त')).trim();
+  correctStreak = 0;
+  updateMenuGreet();
+  show('screen-menu');
+  speak(SAY.greet(childName));
+};
+nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('greetBtn').click(); });
+
+/* ============================================================
+   12c. REWARD SYSTEM — video reward after N correct draws
+   ============================================================ */
+function loadNum(key, fallback){
+  try{ const v = parseInt(localStorage.getItem(key),10); return isNaN(v) ? fallback : v; }catch(e){ return fallback; }
+}
+function saveNum(key, val){ try{ localStorage.setItem(key, val); }catch(e){} }
+
+let rewardConfig = { every: loadNum('wp_rewardEvery', 3), duration: loadNum('wp_rewardDuration', 60) };
+let rewardVideos = [];
+let correctStreak = 0;
+let rewardTimeout = null;
+
+const rewardEverySelect = document.getElementById('rewardEverySelect');
+const rewardDurationSelect = document.getElementById('rewardDurationSelect');
+rewardEverySelect.value = String(rewardConfig.every);
+rewardDurationSelect.value = String(rewardConfig.duration);
+rewardEverySelect.onchange = ()=>{
+  rewardConfig.every = parseInt(rewardEverySelect.value,10); saveNum('wp_rewardEvery', rewardConfig.every);
+};
+rewardDurationSelect.onchange = ()=>{
+  rewardConfig.duration = parseInt(rewardDurationSelect.value,10); saveNum('wp_rewardDuration', rewardConfig.duration);
+};
+
+function isVideoFile(f){
+  const type = (f.type||'').toLowerCase();
+  if(type.startsWith('video')) return true;
+  const ext = (f.name.split('.').pop()||'').toLowerCase();
+  return ['mp4','webm','ogg','mov','m4v','avi','mkv'].includes(ext);
+}
+function updateVideoFolderStatus(){
+  const el = document.getElementById('videoFolderStatus');
+  el.textContent = rewardVideos.length
+    ? ((LANG==='en') ? `🎬 ${rewardVideos.length} video(s) ready` : `🎬 ${rewardVideos.length} वीडियो तैयार हैं`)
+    : t('noVideosChosen');
+}
+document.getElementById('pickVideoFolderBtn').onclick = ()=>{ ac(); document.getElementById('videoFolderInput').click(); };
+document.getElementById('videoFolderInput').onchange = (e)=>{
+  rewardVideos = Array.from(e.target.files || []).filter(isVideoFile);
+  document.getElementById('videoFolderStatus').textContent = rewardVideos.length
+    ? ((LANG==='en') ? `🎬 ${rewardVideos.length} video(s) ready` : `🎬 ${rewardVideos.length} वीडियो तैयार हैं`)
+    : t('noVideosFound');
+};
+updateVideoFolderStatus();
+
+function stopRewardVideo(){
+  const vid = document.getElementById('rewardVideo');
+  vid.pause();
+  if(vid.src) URL.revokeObjectURL(vid.src);
+  vid.removeAttribute('src'); vid.load();
+  vid.style.display = 'none';
+}
+// Progression here is purely timer-driven (not chained to speech onend) so the
+// reward still runs correctly even if speechSynthesis has no voices available.
+function showVideoReward(onDone){
+  const ov = document.getElementById('rewardOverlay');
+  const msgEl = document.getElementById('rewardMessage');
+  ov.classList.add('show');
+  msgEl.style.display = 'block';
+  msgEl.textContent = SAY.rewardIntro(childName);
+  speak(SAY.rewardIntro(childName));
+  rewardTimeout = setTimeout(()=> playRewardVideo(onDone), 2200);
+}
+function playRewardVideo(onDone){
+  if(!rewardVideos.length){
+    rewardTimeout = setTimeout(()=> finishReward(onDone), 800);
+    return;
+  }
+  const msgEl = document.getElementById('rewardMessage');
+  const vid = document.getElementById('rewardVideo');
+  const file = rewardVideos[Math.floor(Math.random()*rewardVideos.length)];
+  msgEl.style.display = 'none';
+  vid.style.display = 'block';
+  vid.loop = true; vid.muted = false;
+  vid.src = URL.createObjectURL(file);
+  vid.currentTime = 0;
+  vid.play().catch(()=>{ vid.muted = true; vid.play().catch(()=>{}); });
+  rewardTimeout = setTimeout(()=> finishReward(onDone), rewardConfig.duration*1000);
+}
+function finishReward(onDone){
+  stopRewardVideo();
+  const msgEl = document.getElementById('rewardMessage');
+  msgEl.style.display = 'block';
+  msgEl.textContent = SAY.rewardOutro();
+  speak(SAY.rewardOutro());
+  rewardTimeout = setTimeout(()=>{
+    document.getElementById('rewardOverlay').classList.remove('show');
+    if(onDone) onDone();
+  }, 2200);
+}
+function cancelReward(){
+  clearTimeout(rewardTimeout); rewardTimeout = null;
+  const ov = document.getElementById('rewardOverlay');
+  if(ov.classList.contains('show')){ stopRewardVideo(); ov.classList.remove('show'); }
+}
+
+/* ============================================================
+   13. LANGUAGE TOGGLE
+   ============================================================ */
+document.getElementById('langBtn').onclick = ()=>{
+  LANG = (LANG==='en') ? 'hi' : 'en';
+  applyI18n();
+  const active = document.querySelector('.screen.active').id;
+  if(active==='screen-practice'){ updatePracticeHeader(); speakPrompt(); }
+  if(active==='screen-menu'){ if(childName) updateMenuGreet(); updateVideoFolderStatus(); }
+};
+
+/* ============================================================
+   14. RESIZE HANDLING
+   ============================================================ */
+window.addEventListener('resize', ()=>{
+  if(document.getElementById('screen-practice').classList.contains('active')){
+    redrawUserCanvas();
+    startWatchAnim(currentItem);
+  }
+});
+
+/* ============================================================
+   15. INIT
+   ============================================================ */
+applyI18n();
+nameInput.focus();
+
+// PWA install/offline support — no-ops (silently, via catch) when opened
+// as a plain file:// double-click, since service workers need http(s).
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
