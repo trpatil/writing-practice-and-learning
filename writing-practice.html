@@ -94,7 +94,7 @@
   .settings-row label{ flex:1 1 200px; }
   .settings-row select{ font-family:inherit; font-size:16px; padding:8px 12px; border-radius:12px;
                  border:2px solid var(--purple); background:#fff; color:#33335a; }
-  #pickVideoFolderBtn{ width:100%; margin-top:4px; }
+  #pickVideoFolderBtn, #pickVideoFilesBtn{ width:100%; margin-top:4px; }
   #videoFolderStatus{ text-align:center; margin-top:10px; }
 
   /* ── Reward video overlay ── */
@@ -192,8 +192,10 @@
         <option value="300">5 min</option>
       </select>
     </div>
-    <button class="btn btn-sm" style="background:var(--teal)" id="pickVideoFolderBtn">🎬 <span data-i18n="pickVideoFolder">Choose Reward Videos</span></button>
-    <input type="file" id="videoFolderInput" accept="video/*" multiple hidden>
+    <button class="btn btn-sm" style="background:var(--teal); margin-bottom:8px;" id="pickVideoFolderBtn">📁 <span data-i18n="pickVideoFolder">Choose Video Folder</span></button>
+    <button class="btn btn-sm" style="background:var(--blue)" id="pickVideoFilesBtn">🎬 <span data-i18n="pickVideoFiles">Choose Video Files</span></button>
+    <input type="file" id="videoFolderInput" webkitdirectory directory multiple hidden>
+    <input type="file" id="videoFilesInput" accept="video/*" multiple hidden>
     <div class="hint" id="videoFolderStatus"></div>
   </div>
 </div>
@@ -274,7 +276,8 @@ const I18N = {
   rewardEveryLabel:{ en:'Give a reward after this many correct draws:',
                       hi:'इतनी सही ड्राइंग के बाद इनाम दो:' },
   rewardDurationLabel:{ en:'Video length:',            hi:'वीडियो की लंबाई:' },
-  pickVideoFolder:{ en:'Choose Reward Videos',         hi:'इनाम वीडियो चुनो' },
+  pickVideoFolder:{ en:'Choose Video Folder',          hi:'वीडियो फ़ोल्डर चुनो' },
+  pickVideoFiles:{ en:'Choose Video Files',            hi:'वीडियो फ़ाइलें चुनो' },
   noVideosChosen:{ en:'No videos chosen yet.',         hi:'अभी तक कोई वीडियो नहीं चुना।' },
   noVideosFound:{ en:'No supported videos in that selection.', hi:'चुनी गई फ़ाइलों में कोई सही वीडियो नहीं मिला।' },
   watch:       { en:'Watch',                          hi:'देखो' },
@@ -933,13 +936,16 @@ function updateVideoFolderStatus(){
     ? ((LANG==='en') ? `🎬 ${rewardVideos.length} video(s) ready` : `🎬 ${rewardVideos.length} वीडियो तैयार हैं`)
     : t('noVideosChosen');
 }
-document.getElementById('pickVideoFolderBtn').onclick = ()=>{ ac(); document.getElementById('videoFolderInput').click(); };
-document.getElementById('videoFolderInput').onchange = (e)=>{
+function handleVideoSelection(e){
   rewardVideos = Array.from(e.target.files || []).filter(isVideoFile);
   document.getElementById('videoFolderStatus').textContent = rewardVideos.length
     ? ((LANG==='en') ? `🎬 ${rewardVideos.length} video(s) ready` : `🎬 ${rewardVideos.length} वीडियो तैयार हैं`)
     : t('noVideosFound');
-};
+}
+document.getElementById('pickVideoFolderBtn').onclick = ()=>{ ac(); document.getElementById('videoFolderInput').click(); };
+document.getElementById('pickVideoFilesBtn').onclick = ()=>{ ac(); document.getElementById('videoFilesInput').click(); };
+document.getElementById('videoFolderInput').onchange = handleVideoSelection;
+document.getElementById('videoFilesInput').onchange = handleVideoSelection;
 updateVideoFolderStatus();
 
 function stopRewardVideo(){
